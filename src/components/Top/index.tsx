@@ -14,7 +14,7 @@ const Top: React.FC = () => {
           onPress={() => router.back()}
         >
           <Image
-            source={require("../../../assets/images/seta.png")} // Ajuste o caminho
+            source={require("../../../assets/images/seta.png")}
             style={{ width: 24, height: 24 }}
             resizeMode="contain"
           />
@@ -27,7 +27,7 @@ const Top: React.FC = () => {
           onPress={() => console.log("Notificações pressionado (futuro)")}
         >
           <Image
-            source={require("../../../assets/images/sino.png")} // Ajuste o caminho
+            source={require("../../../assets/images/sino.png")}
             style={{ width: 24, height: 24 }}
             resizeMode="contain"
           />

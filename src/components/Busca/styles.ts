@@ -6,38 +6,39 @@ const styles = StyleSheet.create({
   container: {
     width: "100%",
     alignItems: "center",
-    marginTop: 16, // Espaço entre o Top e o Busca
+    marginTop: 16,
   },
   input: {
-    borderRadius: 50, // Formato de cápsula
+    borderRadius: 50,
     backgroundColor: "#fff",
     borderStyle: "solid",
     borderColor: "#e5e7eb",
     borderWidth: 1,
-    width: width * 0.9, // 90% da largura da tela
-    height: 40, // Altura ajustada para 40px
-    justifyContent: "center", // Centraliza verticalmente o conteúdo
+    width: width * 0.9,
+    height: 40,
+    justifyContent: "center",
     overflow: "hidden",
   },
   inputContent: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12, // Espaçamento interno
+    justifyContent: "flex-start", 
+    paddingHorizontal: 12,
   },
   lupaIcon: {
     width: 14,
     height: 14,
-    marginRight: 6, // Espaço entre a lupa e o texto
+    marginRight: 6,
   },
   buscarFeiraOu: {
     fontSize: 16,
-    lineHeight: 40, // Ajustado para centralizar verticalmente com a altura de 40px
+    lineHeight: 40, 
     fontFamily: "Poppins-Regular",
-    color: "#000", // Cor do texto digitado
-    textAlign: "left",
-    textAlignVertical: "center", // Centraliza verticalmente no Android
-    paddingVertical: 0, // Remove padding vertical para evitar deslocamento
-    flexShrink: 1, // Garante que o texto se ajuste ao espaço disponível
+    color: "#000",
+    textAlign: "left", 
+    textAlignVertical: "center",
+    paddingVertical: 0,
+    flexShrink: 0, 
   },
 });
 

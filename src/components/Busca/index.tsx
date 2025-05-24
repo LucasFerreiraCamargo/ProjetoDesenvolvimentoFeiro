@@ -7,7 +7,6 @@ const Busca: React.FC = () => {
 
   const handlePress = () => {
     console.log("Barra de busca clicada!");
-    // Não retorna nada por enquanto, apenas loga a interação
   };
 
   return (
@@ -15,7 +14,7 @@ const Busca: React.FC = () => {
       <TouchableOpacity onPress={handlePress} style={styles.input}>
         <View style={styles.inputContent}>
           <Image
-            source={require("../../../assets/images/lupa.png")} // Ajuste o caminho
+            source={require("../../../assets/images/lupa.png")}
             style={styles.lupaIcon}
             resizeMode="contain"
           />

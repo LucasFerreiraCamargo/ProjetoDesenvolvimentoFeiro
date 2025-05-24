@@ -10,7 +10,7 @@ export default function Layout() {
   });
 
   if (!fontsLoaded) {
-    return null; // Retorna null enquanto as fontes não são carregadas
+    return null;
   }
 
   return (
@@ -23,6 +23,6 @@ export default function Layout() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFF7E4", // Fundo pastel global
+    backgroundColor: "#FFF7E4",
   },
 });

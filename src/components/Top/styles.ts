@@ -4,18 +4,18 @@ const { width } = Dimensions.get("window");
 
 const styles = StyleSheet.create({
   top: {
-    backgroundColor: "#FFFFFF", // Fundo branco para o Top
+    backgroundColor: "#FFFFFF",
     shadowColor: "rgba(0, 0, 0, 0.05)",
     shadowOffset: { width: 0, height: 1 },
     shadowRadius: 2,
     elevation: 2,
     shadowOpacity: 1,
-    width: width, // Usa a largura da tela
-    height: 60, // Altura definida anteriormente
-    position: "absolute", // Garante que fique fixo no topo
-    top: 0, // Fixa no topo
-    left: 0, // Garante que comece no canto esquerdo
-    right: 0, // Garante que termine no canto direito
+    width: width,
+    height: 60,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
   },
   topContainer: {
     flexDirection: "row",
@@ -36,7 +36,6 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-SemiBold",
     color: "#000",
     textAlign: "center",
-    width: 155,
     height: 25,
   },
   buttonBackIcon: {

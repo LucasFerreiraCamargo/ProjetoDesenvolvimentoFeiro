@@ -22,27 +22,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   feirasList: {
-    padding: 16,
-    paddingBottom: 100,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8,
-  },
-  feiraItem: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    marginBottom: 8,
-    backgroundColor: "#FFFFFF",
-  },
-  feiraName: {
-    fontSize: 16,
-    fontFamily: "Poppins-SemiBold",
-    color: "#000",
-  },
-  feiraLocation: {
-    fontSize: 14,
-    fontFamily: "Poppins-Regular",
-    color: "#666",
+    backgroundColor: "transparent",
   },
 });
 

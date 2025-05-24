@@ -2,11 +2,11 @@ import { StyleSheet } from "react-native";
 
 const styles = StyleSheet.create({
   button: {
-    borderRadius: 9999, // Formato de cápsula
+    borderRadius: 9999,
     height: 42,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 20, // Espaço interno para o texto
+    paddingHorizontal: 16,
   },
   buttonInactive: {
     backgroundColor: "#fff",
@@ -15,7 +15,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   buttonActive: {
-    backgroundColor: "#89a463", // Verde quando ativo
+    backgroundColor: "#89a463",
   },
   buttonContent: {
     flexDirection: "row",
@@ -28,10 +28,10 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   labelInactive: {
-    color: "#000", // Preto quando inativo
+    color: "#000",
   },
   labelActive: {
-    color: "#fff", // Branco quando ativo
+    color: "#fff",
   },
 });
 

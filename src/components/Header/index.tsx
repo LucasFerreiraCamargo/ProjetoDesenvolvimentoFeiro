@@ -7,7 +7,7 @@ const Header: React.FC = () => {
     <View style={styles.header}>
       <View style={styles.headerContent}>
         <Image
-          source={require("../../../assets/images/logo.png")} // Ajuste o caminho
+          source={require("../../../assets/images/logo.png")}
           style={styles.logo}
           resizeMode="contain"
         />

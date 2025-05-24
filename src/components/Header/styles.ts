@@ -2,7 +2,7 @@ import { StyleSheet } from "react-native";
 
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: "#FFF7E4", // Fundo do header combinando com o global
+    backgroundColor: "#FFF7E4",
     width: "100%",
     height: 56,
     justifyContent: "center",

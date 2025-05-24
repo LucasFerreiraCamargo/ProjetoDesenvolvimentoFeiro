@@ -72,7 +72,7 @@ const Nav: React.FC = () => {
             text="Recorrente"
             onPress={() => handlePress("recorrente")}
             isActive={activeButton === "recorrente"}
-            style={[styles.frameIcon3, styles.frameIconLayout]}
+            style={[styles.frameIcon3, styles.frameIconLayout, { marginTop: 0, paddingTop: 0 }]}
           />
         </View>
         <View style={styles.div5}>

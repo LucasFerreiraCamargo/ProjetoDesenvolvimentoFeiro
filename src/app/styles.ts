@@ -3,12 +3,12 @@ import { StyleSheet } from "react-native";
 const styles = StyleSheet.create({
   outerContainer: {
     flex: 1,
-    backgroundColor: "#FFF7E4", // Fundo pastel global
+    backgroundColor: "#FFF7E4", 
   },
   innerContainer: {
     flex: 1,
-    paddingTop: 16, // Padding apenas no topo para o Header
-    paddingHorizontal: 16, // Padding nas laterais para o conteúdo
+    paddingTop: 16, 
+    paddingHorizontal: 16,
   },
   contentWrapper: {
     flex: 1,

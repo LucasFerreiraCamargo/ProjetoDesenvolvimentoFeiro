@@ -1,7 +1,8 @@
 import * as React from "react";
 import { Text, View } from "react-native";
-import Header from "../components/Header"; // Ajuste o caminho
-import Nav from "../components/Nav"; // Ajuste o caminho
+import { useFonts } from "expo-font";
+import Header from "../components/Header"; 
+import Nav from "../components/Nav"; 
 import styles from "./styles";
 
 const HomeScreen = () => {
@@ -20,4 +21,18 @@ const HomeScreen = () => {
   );
 };
 
-export default HomeScreen;
+export default function App() {
+  const [fontsLoaded, error] = useFonts({
+    "Poppins-Regular": require("../../assets/fonts/Poppins-Regular.ttf"),
+    "Poppins-SemiBold": require("../../assets/fonts/Poppins-SemiBold.ttf"),
+  });
+
+  if (!fontsLoaded) {
+    if (error) {
+      console.error("Erro ao carregar fontes:", error);
+    }
+    return <Text style={{ textAlign: "center", marginTop: 50 }}>Carregando fontes...</Text>;
+  }
+
+  return <HomeScreen />;
+}
