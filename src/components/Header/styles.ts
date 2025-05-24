@@ -2,9 +2,11 @@ import { StyleSheet } from "react-native";
 
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: "#FFFFFF", // Fundo branco para o Header
+    backgroundColor: "#FFF7E4", // Fundo do header combinando com o global
     width: "100%",
     height: 56,
+    justifyContent: "center",
+    alignItems: "center",
     shadowColor: "rgba(0, 0, 0, 0.05)",
     shadowOffset: { width: 0, height: 1 },
     shadowRadius: 2,

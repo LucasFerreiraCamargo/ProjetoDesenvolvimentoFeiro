@@ -1,7 +1,8 @@
 import * as React from "react";
 import { FlatList, Text, View } from "react-native";
-import Top from "../components/Top"; // Ajuste o caminho
-import Nav from "../components/Nav"; // Ajuste o caminho
+import Top from "../components/Top";
+import Nav from "../components/Nav";
+import Busca from "../components/Busca";
 import styles from "../app/feiras/styles";
 
 type Feira = {
@@ -24,15 +25,20 @@ const FeirasScreen = () => {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={styles.outerContainer}>
       <Top />
-      <FlatList
-        data={feiras}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        style={styles.feirasList}
-      />
-      <Nav />
+      <View style={styles.innerContainer}>
+        <Busca />
+        <View style={styles.contentWrapper}>
+          <FlatList
+            data={feiras}
+            renderItem={renderItem}
+            keyExtractor={(item) => item.id}
+            style={styles.feirasList}
+          />
+        </View>
+        <Nav />
+      </View>
     </View>
   );
 };

@@ -1,47 +1,39 @@
 import * as React from "react";
-import { Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { usePathname } from "expo-router"; // Para detectar a rota atual
-import CustomButton from "../Botao"; // Ajuste o caminho
+import { View, Text, Image, Pressable } from "react-native";
+import { useRouter } from "expo-router";
 import styles from "./styles";
 
-const Top = () => {
-  const pathname = usePathname(); // Detecta a rota atual
-  const handleBackPress = () => {
-    console.log("Voltar para a página anterior (futuro)");
-  };
-
-  const handleNotificationPress = () => {
-    console.log("Abrir tela de notificações (futuro)");
-  };
-
-  const getTitle = () => {
-    if (pathname === "/feiras") return "Feiras da Cidade";
-    return ""; // Título vazio para outras páginas
-  };
+const Top: React.FC = () => {
+  const router = useRouter();
 
   return (
-    <SafeAreaView style={styles.top}>
+    <View style={styles.top}>
       <View style={styles.topContainer}>
-        <CustomButton
-          imagePath={require("../../../assets/images/seta.png")} // Botão voltar no canto esquerdo
-          activeImagePath={require("../../../assets/images/seta.png")}
-          onPress={handleBackPress}
-          isActive={false}
+        <Pressable
           style={styles.buttonBackIcon}
-        />
+          onPress={() => router.back()}
+        >
+          <Image
+            source={require("../../../assets/images/seta.png")} // Ajuste o caminho
+            style={{ width: 24, height: 24 }}
+            resizeMode="contain"
+          />
+        </Pressable>
         <View style={styles.titleContainer}>
-          <Text style={styles.feirasDaCidade}>{getTitle()}</Text>
+          <Text style={styles.feirasDaCidade}>Feiras da Cidade</Text>
         </View>
-        <CustomButton
-          imagePath={require("../../../assets/images/sino.png")} // Botão notificações no canto direito
-          activeImagePath={require("../../../assets/images/sino.png")}
-          onPress={handleNotificationPress}
-          isActive={false}
+        <Pressable
           style={styles.buttonNotificationIcon}
-        />
+          onPress={() => console.log("Notificações pressionado (futuro)")}
+        >
+          <Image
+            source={require("../../../assets/images/sino.png")} // Ajuste o caminho
+            style={{ width: 24, height: 24 }}
+            resizeMode="contain"
+          />
+        </Pressable>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 

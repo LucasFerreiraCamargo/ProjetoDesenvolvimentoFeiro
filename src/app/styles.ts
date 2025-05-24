@@ -1,19 +1,30 @@
 import { StyleSheet } from "react-native";
 
 const styles = StyleSheet.create({
-  container: {
+  outerContainer: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#FFF7E4", // Fundo pastel global
   },
-  content: {
+  innerContainer: {
+    flex: 1,
+    paddingTop: 16, // Padding apenas no topo para o Header
+    paddingHorizontal: 16, // Padding nas laterais para o conteúdo
+  },
+  contentWrapper: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 16,
+    backgroundColor: "transparent",
   },
-  welcomeText: {
+  content: {
+    padding: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  placeholderText: {
     fontSize: 20,
-    fontFamily: "Poppins-Regular", // Texto em Poppins-Regular
+    fontFamily: "Poppins-Regular",
     color: "#000",
     textAlign: "center",
   },

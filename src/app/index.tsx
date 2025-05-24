@@ -6,12 +6,16 @@ import styles from "./styles";
 
 const HomeScreen = () => {
   return (
-    <View style={styles.container}>
-      <Header />
-      <View style={styles.content}>
-        <Text style={styles.welcomeText}>Explore as feiras da sua cidade!</Text>
+    <View style={styles.outerContainer}>
+      <View style={styles.innerContainer}>
+        <Header />
+        <View style={styles.contentWrapper}>
+          <View style={styles.content}>
+            <Text style={styles.placeholderText}>Explore as feiras da sua cidade!</Text>
+          </View>
+        </View>
+        <Nav />
       </View>
-      <Nav />
     </View>
   );
 };

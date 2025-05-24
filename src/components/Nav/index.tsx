@@ -33,7 +33,7 @@ const Nav: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.nav}>
+    <SafeAreaView style={styles.nav} edges={["bottom"]}>
       <View style={[styles.div, styles.divLayout]}>
         <View style={styles.div1}>
           <CustomButton

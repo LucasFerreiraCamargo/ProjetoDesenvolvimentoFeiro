@@ -23,6 +23,6 @@ export default function Layout() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFF7E4", // Fundo global do aplicativo
+    backgroundColor: "#FFF7E4", // Fundo pastel global
   },
 });

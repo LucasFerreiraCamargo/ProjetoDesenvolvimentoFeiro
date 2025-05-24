@@ -10,9 +10,12 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
     shadowOpacity: 1,
-    width: "100%",
-    height: 56,
-    position: "relative",
+    width: width, // Usa a largura da tela
+    height: 60, // Altura definida anteriormente
+    position: "absolute", // Garante que fique fixo no topo
+    top: 0, // Fixa no topo
+    left: 0, // Garante que comece no canto esquerdo
+    right: 0, // Garante que termine no canto direito
   },
   topContainer: {
     flexDirection: "row",
