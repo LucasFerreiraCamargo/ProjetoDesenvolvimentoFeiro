@@ -6,7 +6,7 @@ const styles = StyleSheet.create({
   nav: {
     backgroundColor: "#FFFFFF", // Fundo branco para o Nav
     width: width, // Usa a largura da tela diretamente
-    height: 55,
+    height: 60,
     position: "absolute",
     bottom: 0,
     left: 0, // Garante que começa no canto esquerdo

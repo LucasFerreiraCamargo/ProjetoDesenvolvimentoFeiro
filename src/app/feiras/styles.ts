@@ -7,13 +7,19 @@ const styles = StyleSheet.create({
   },
   innerContainer: {
     flex: 1,
-    paddingTop: 60, // Espaço para o Top
+    paddingTop: 60,
     paddingHorizontal: 16,
+  },
+  filterContainer: {
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  filterList: {
+    paddingHorizontal: 0,
   },
   contentWrapper: {
     flex: 1,
     backgroundColor: "transparent",
-    marginTop: 8, // Espaço entre o Busca e a lista
   },
   feirasList: {
     padding: 16,
