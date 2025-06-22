@@ -1,18 +1,16 @@
-import * as React from "react";
-import { View, Text, Image, Pressable } from "react-native";
 import { useRouter } from "expo-router";
+import * as React from "react";
+import { Image, Pressable, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import styles from "./styles";
 
 const Top: React.FC = () => {
   const router = useRouter();
 
   return (
-    <View style={styles.top}>
+    <SafeAreaView style={styles.top}>
       <View style={styles.topContainer}>
-        <Pressable
-          style={styles.buttonBackIcon}
-          onPress={() => router.back()}
-        >
+        <Pressable style={styles.buttonBackIcon} onPress={() => router.back()}>
           <Image
             source={require("../../../assets/images/seta.png")}
             style={{ width: 24, height: 24 }}
@@ -24,7 +22,7 @@ const Top: React.FC = () => {
         </View>
         <Pressable
           style={styles.buttonNotificationIcon}
-          onPress={() => console.log("Notificações pressionado (futuro)")}
+          onPress={() => router.push("/notificacoes")}
         >
           <Image
             source={require("../../../assets/images/sino.png")}
@@ -33,7 +31,7 @@ const Top: React.FC = () => {
           />
         </Pressable>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 

@@ -1,12 +1,40 @@
+import { router } from "expo-router";
 import * as React from "react";
-import { TextInput, View, Image, TouchableOpacity } from "react-native";
+import { Alert, Image, TextInput, TouchableOpacity, View } from "react-native";
 import styles from "./styles";
 
-const Busca: React.FC = () => {
+interface BuscaProps {
+  onSearch?: (text: string) => void;
+  placeholder?: string;
+}
+
+const Busca: React.FC<BuscaProps> = ({
+  onSearch,
+  placeholder = "Buscar feira ou bairro",
+}) => {
   const [searchText, setSearchText] = React.useState<string>("");
 
   const handlePress = () => {
-    console.log("Barra de busca clicada!");
+    if (searchText.trim()) {
+      performSearch();
+    }
+  };
+
+  const performSearch = () => {
+    if (onSearch) {
+      onSearch(searchText);
+    } else {
+      // Navegar para a tela de busca
+      router.push("/busca" as any);
+    }
+  };
+
+  const handleSubmit = () => {
+    if (searchText.trim()) {
+      performSearch();
+    } else {
+      Alert.alert("Busca vazia", "Digite algo para buscar");
+    }
   };
 
   return (
@@ -20,11 +48,12 @@ const Busca: React.FC = () => {
           />
           <TextInput
             style={styles.buscarFeiraOu}
-            placeholder="Buscar feira ou bairro"
+            placeholder={placeholder}
             placeholderTextColor="#adaebc"
             value={searchText}
             onChangeText={(text) => setSearchText(text)}
             returnKeyType="search"
+            onSubmitEditing={handleSubmit}
           />
         </View>
       </TouchableOpacity>

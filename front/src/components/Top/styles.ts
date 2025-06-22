@@ -1,4 +1,4 @@
-import { StyleSheet, Dimensions } from "react-native";
+import { Dimensions, StyleSheet } from "react-native";
 
 const { width } = Dimensions.get("window");
 
@@ -11,17 +11,13 @@ const styles = StyleSheet.create({
     elevation: 2,
     shadowOpacity: 1,
     width: width,
-    height: 60,
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
+    paddingBottom: 10,
   },
   topContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    height: "100%",
+    height: 60,
     width: "100%",
     paddingHorizontal: 16,
   },
@@ -36,17 +32,18 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-SemiBold",
     color: "#000",
     textAlign: "center",
-    height: 25,
   },
   buttonBackIcon: {
-    position: "absolute",
-    left: 16,
-    zIndex: 1,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
   },
   buttonNotificationIcon: {
-    position: "absolute",
-    right: 16,
-    zIndex: 1,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
 
