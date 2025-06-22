@@ -1,22 +1,8 @@
-const { getDefaultConfig } = require('expo/metro-config');
+const { getDefaultConfig } = require("expo/metro-config");
 
-module.exports = (async () => {
-  const config = await getDefaultConfig(__dirname);
-  return {
-    ...config,
-    transformer: {
-      ...config.transformer,
-      getTransformOptions: async () => ({
-        transform: {
-          experimentalImportSupport: false,
-          inlineRequires: true,
-        },
-      }),
-    },
-    resolver: {
-      ...config.resolver,
-      sourceExts: [...config.resolver.sourceExts, 'ts', 'tsx'],
-      assetExts: [...config.resolver.assetExts, 'png', 'jpg', 'jpeg', 'svg'],
-    },
-  };
-})();
+const config = getDefaultConfig(__dirname);
+
+// Adicionar resolução para plataformas web
+config.resolver.platforms = ["ios", "android", "native", "web"];
+
+module.exports = config;
