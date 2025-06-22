@@ -1,11 +1,11 @@
 import * as React from "react";
 import { FlatList, View } from "react-native";
-import Top from "../components/Top";
-import Nav from "../components/Nav";
-import Busca from "../components/Busca";
-import BotaoFiltro from "../components/BotaoFiltro";
-import Card from "../components/Card"; 
 import styles from "../app/feiras/styles";
+import BotaoFiltro from "../components/BotaoFiltro";
+import Busca from "../components/Busca";
+import Card from "../components/Card";
+import Nav from "../components/Nav";
+import Top from "../components/Top";
 
 type Feira = {
   id: string;
@@ -60,6 +60,7 @@ const FeirasScreen = () => {
 
   const renderCard = ({ item }: { item: Feira }) => (
     <Card
+      id={item.id}
       name={item.name}
       neighborhood={item.neighborhood}
       hours={item.hours}
