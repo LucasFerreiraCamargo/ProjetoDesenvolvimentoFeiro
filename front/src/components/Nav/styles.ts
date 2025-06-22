@@ -1,4 +1,4 @@
-import { StyleSheet, Dimensions } from "react-native";
+import { Dimensions, StyleSheet } from "react-native";
 
 const { width } = Dimensions.get("window");
 
@@ -70,6 +70,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(0, 0, 0, 0)",
   },
+  div6: {
+    flex: 1,
+    height: 60,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0, 0, 0, 0)",
+  },
   frameIcon: {
     left: 0,
   },
@@ -94,6 +101,26 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     overflow: "visible",
     paddingBottom: 0,
+  },
+  perfilButton: {
+    height: 60,
+    width: 80,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+  },
+  perfilButtonActive: {
+    backgroundColor: "rgba(74, 124, 89, 0.1)",
+  },
+  perfilText: {
+    fontSize: 10,
+    fontFamily: "Poppins-Regular",
+    color: "#999",
+    marginTop: 2,
+  },
+  perfilTextActive: {
+    color: "#4A7C59",
+    fontFamily: "Poppins-SemiBold",
   },
 });
 
