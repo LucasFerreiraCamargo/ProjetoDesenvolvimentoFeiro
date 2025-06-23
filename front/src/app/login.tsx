@@ -1,0 +1,195 @@
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useState } from "react";
+import {
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+
+export default function LoginScreen() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
+
+  return (
+    <View style={styles.container}>
+      {/* Logo */}
+      <View style={styles.logoContainer}>
+        <Image
+          source={require("../../assets/images/logo.png")}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+        <Text style={styles.subtitle}>Sua feira online</Text>
+      </View>
+
+      {/* Card de Login */}
+      <View style={styles.loginCard}>
+        <Text style={styles.loginTitle}>Login</Text>
+
+        <View style={styles.formContainer}>
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Email</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="seu@email.com"
+              placeholderTextColor="#999"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Senha</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="••••••••"
+              placeholderTextColor="#999"
+              value={senha}
+              onChangeText={setSenha}
+              secureTextEntry
+            />
+          </View>
+
+          <Pressable style={styles.forgotPassword}>
+            <Text style={styles.forgotPasswordText}>Esqueceu a senha?</Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.entrarButton}
+            onPress={() => router.replace("/home")}
+          >
+            <Text style={styles.entrarButtonText}>Entrar</Text>
+          </Pressable>
+
+          <Pressable style={styles.googleButton}>
+            <Ionicons name="logo-google" size={20} color="#4285F4" />
+            <Text style={styles.googleButtonText}>Continuar com Google</Text>
+          </Pressable>
+        </View>
+      </View>
+
+      {/* Link para criar conta */}
+      <View style={styles.footerContainer}>
+        <Text style={styles.footerText}>Ainda não tem uma conta? </Text>
+        <Pressable onPress={() => router.replace("/onboarding")}>
+          <Text style={styles.footerLink}>Cadastre-se</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#FFF7E4",
+    paddingHorizontal: 24,
+    justifyContent: "center",
+  },
+  logoContainer: {
+    alignItems: "center",
+    marginBottom: 40,
+  },
+  logo: {
+    width: 120,
+    height: 60,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#4A4A4A",
+  },
+  loginCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 32,
+    marginBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  loginTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#333",
+    textAlign: "center",
+    marginBottom: 32,
+  },
+  formContainer: {
+    gap: 20,
+  },
+  inputContainer: {
+    gap: 8,
+  },
+  inputLabel: {
+    fontSize: 14,
+    color: "#333",
+    fontWeight: "500",
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#E5E5E5",
+    borderRadius: 8,
+    padding: 16,
+    fontSize: 16,
+    backgroundColor: "#FAFAFA",
+  },
+  forgotPassword: {
+    alignSelf: "flex-end",
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    color: "#255336",
+  },
+  entrarButton: {
+    backgroundColor: "#255336",
+    height: 56,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  entrarButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  googleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E5E5E5",
+    height: 56,
+    borderRadius: 8,
+    gap: 12,
+  },
+  googleButtonText: {
+    fontSize: 16,
+    color: "#333",
+  },
+  footerContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  footerText: {
+    fontSize: 14,
+    color: "#666",
+  },
+  footerLink: {
+    fontSize: 14,
+    color: "#255336",
+    fontWeight: "600",
+    textDecorationLine: "underline",
+  },
+});

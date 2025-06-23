@@ -15,72 +15,9 @@ import {
 } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 
-import Nav from "../components/Nav/index";
+import { Feira, useApp } from "../contexts/AppContext";
 
 const { width, height } = Dimensions.get("window");
-
-const feiras = [
-  {
-    id: "1",
-    nome: "Feira Central",
-    endereco: "Av. Principal, 1234 - Centro",
-    status: "Aberto",
-    feirantes: "12 Feirantes",
-    imagem: require("../../assets/images/banner.png"),
-    coordinate: {
-      latitude: -31.7654,
-      longitude: -52.3376,
-    },
-  },
-  {
-    id: "2",
-    nome: "Feira Vila Mariana",
-    endereco: "Rua das Flores, 123 - Vila Mariana",
-    status: "Aberto",
-    feirantes: "8 Feirantes",
-    imagem: require("../../assets/images/banner.png"),
-    coordinate: {
-      latitude: -31.7704,
-      longitude: -52.3426,
-    },
-  },
-  {
-    id: "3",
-    nome: "Feira Pinheiros",
-    endereco: "Av. Pinheiros, 456 - Pinheiros",
-    status: "Fechado",
-    feirantes: "15 Feirantes",
-    imagem: require("../../assets/images/banner.png"),
-    coordinate: {
-      latitude: -31.7604,
-      longitude: -52.3326,
-    },
-  },
-  {
-    id: "4",
-    nome: "Feira do Produtor",
-    endereco: "Praça Central, s/n - Centro",
-    status: "Fechado",
-    feirantes: "10 Feirantes",
-    imagem: require("../../assets/images/banner.png"),
-    coordinate: {
-      latitude: -31.7684,
-      longitude: -52.3406,
-    },
-  },
-  {
-    id: "5",
-    nome: "Feira Orgânica",
-    endereco: "Rua Verde, 789 - Ecológico",
-    status: "Aberto",
-    feirantes: "6 Feirantes",
-    imagem: require("../../assets/images/banner.png"),
-    coordinate: {
-      latitude: -31.7634,
-      longitude: -52.3356,
-    },
-  },
-];
 
 const FeiraCard = ({
   feira,
@@ -90,7 +27,7 @@ const FeiraCard = ({
   onCardPress,
   showSelection = true,
 }: {
-  feira: any;
+  feira: Feira;
   onVerFeirantes: () => void;
   onTracarRota: () => void;
   isSelected: boolean;
@@ -107,7 +44,7 @@ const FeiraCard = ({
       activeOpacity={0.8}
     >
       <View style={styles.cardContent}>
-        <Image source={feira.imagem} style={styles.feiraImage} />
+        <Image source={{ uri: feira.imagem }} style={styles.feiraImage} />
         <View style={styles.feiraInfo}>
           <Text style={styles.feiraNome}>{feira.nome}</Text>
           <View style={styles.feiraDetailsRow}>
@@ -128,7 +65,9 @@ const FeiraCard = ({
             </View>
             <View style={styles.feirantesInfo}>
               <Ionicons name="people-outline" size={14} color="#666" />
-              <Text style={styles.feiranteCount}>{feira.feirantes}</Text>
+              <Text style={styles.feiranteCount}>
+                {feira.feirantes.length} Feirantes
+              </Text>
             </View>
           </View>
 
@@ -166,11 +105,9 @@ const CustomPin = ({
   feira,
   isSelected,
 }: {
-  feira: any;
+  feira: Feira;
   isSelected: boolean;
 }) => {
-  console.log(`Pin ${feira.nome} - isSelected:`, isSelected);
-
   return (
     <View
       style={[
@@ -193,6 +130,8 @@ export default function MapaScreen() {
   const [highlightedPinId, setHighlightedPinId] = useState<string | null>(null);
   const mapRef = useRef<MapView>(null);
   const scrollRef = useRef<ScrollView>(null);
+  const { state } = useApp();
+  const feiras = state.feiras;
 
   const initialRegion = {
     latitude: -31.7654,
@@ -201,39 +140,25 @@ export default function MapaScreen() {
     longitudeDelta: 0.0421,
   };
 
-  const handleMarkerPress = (feira: any) => {
-    // Mesma lógica do card: apenas destaca o pin e rola para o card
-    setHighlightedPinId(feira.id); // Destaca o pin
+  const handleMarkerPress = (feira: Feira) => {
+    setHighlightedPinId(feira.id);
 
-    // Rola para o card correspondente na lista
     const index = feiras.findIndex((f) => f.id === feira.id);
     scrollRef.current?.scrollTo({
       x: index * (width * 0.85 + 12),
       animated: true,
     });
-
-    console.log("Pin clicado:", feira.nome, "ID:", feira.id);
   };
 
-  const handleCardPress = (feira: any) => {
-    // Apenas destaca o pin, sem mostrar o card overlay
-    console.log("Card clicado:", feira.nome, "ID:", feira.id);
-    setHighlightedPinId(feira.id); // Destaca o pin
-    console.log("Pin destacado:", feira.id);
+  const handleCardPress = (feira: Feira) => {
+    setHighlightedPinId(feira.id);
   };
 
-  const handleVerFeirantes = (feira: any) => {
-    Alert.alert("Feirantes", `Navegando para os feirantes da ${feira.nome}`, [
-      {
-        text: "OK",
-        onPress: () => {
-          router.push(`/feirantes/${feira.id}`);
-        },
-      },
-    ]);
+  const handleVerFeirantes = (feira: Feira) => {
+    router.push(`/feirantes/${feira.id}`);
   };
 
-  const handleTracarRota = (feira: any) => {
+  const handleTracarRota = (feira: Feira) => {
     const { latitude, longitude } = feira.coordinate;
     const url = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`;
 
@@ -269,62 +194,60 @@ export default function MapaScreen() {
         </View>
       </View>
 
-      {/* Google Maps */}
-      <View style={styles.mapContainer}>
-        <MapView
-          ref={mapRef}
-          provider={PROVIDER_GOOGLE}
-          style={styles.map}
-          initialRegion={initialRegion}
-          showsUserLocation={true}
-          showsMyLocationButton={true}
-        >
-          {feiras.map((feira) => {
-            const isSelected = highlightedPinId === feira.id;
-            console.log(
-              `Marker ${feira.nome} (${feira.id}) - highlightedPinId: ${highlightedPinId} - isSelected: ${isSelected}`
-            );
-
-            return (
-              <Marker
-                key={feira.id}
-                coordinate={feira.coordinate}
-                onPress={() => handleMarkerPress(feira)}
-              >
-                <CustomPin feira={feira} isSelected={isSelected} />
-              </Marker>
-            );
-          })}
-        </MapView>
-
-        {/* Lista de Todas as Feiras - SEMPRE VISÍVEL */}
-        <View style={styles.feirasListContainer}>
-          <ScrollView
-            ref={scrollRef}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.feirasScrollContent}
-            style={styles.feirasScroll}
-            decelerationRate="fast"
-            snapToInterval={width * 0.85 + 12}
-            snapToAlignment="start"
+      {/* Mapa */}
+      <MapView
+        ref={mapRef}
+        provider={PROVIDER_GOOGLE}
+        style={styles.map}
+        initialRegion={initialRegion}
+        showsUserLocation={true}
+        showsMyLocationButton={false}
+        showsCompass={true}
+        showsScale={true}
+        loadingEnabled={true}
+      >
+        {feiras.map((feira) => (
+          <Marker
+            key={feira.id}
+            coordinate={feira.coordinate}
+            onPress={() => handleMarkerPress(feira)}
+            tracksViewChanges={false}
           >
-            {feiras.map((feira) => (
-              <FeiraCard
-                key={feira.id}
-                feira={feira}
-                onVerFeirantes={() => handleVerFeirantes(feira)}
-                onTracarRota={() => handleTracarRota(feira)}
-                isSelected={highlightedPinId === feira.id}
-                onCardPress={() => handleCardPress(feira)}
-                showSelection={false}
-              />
-            ))}
-          </ScrollView>
-        </View>
-      </View>
+            <CustomPin
+              feira={feira}
+              isSelected={highlightedPinId === feira.id}
+            />
+          </Marker>
+        ))}
+      </MapView>
 
-      <Nav />
+      {/* Botão Localização */}
+      <TouchableOpacity style={styles.locationButton}>
+        <Ionicons name="locate" size={24} color="#255336" />
+      </TouchableOpacity>
+
+      {/* Lista horizontal de feiras */}
+      <View style={styles.feirasListContainer}>
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          snapToInterval={width * 0.85 + 12}
+          decelerationRate="fast"
+          contentContainerStyle={styles.feirasScrollContainer}
+        >
+          {feiras.map((feira) => (
+            <FeiraCard
+              key={feira.id}
+              feira={feira}
+              onVerFeirantes={() => handleVerFeirantes(feira)}
+              onTracarRota={() => handleTracarRota(feira)}
+              isSelected={highlightedPinId === feira.id}
+              onCardPress={() => handleCardPress(feira)}
+            />
+          ))}
+        </ScrollView>
+      </View>
     </View>
   );
 }
@@ -564,5 +487,25 @@ const styles = StyleSheet.create({
     color: "#255336",
     fontWeight: "600",
     fontSize: 12,
+  },
+  locationButton: {
+    position: "absolute",
+    bottom: 20,
+    right: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#FFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  feirasScrollContainer: {
+    paddingHorizontal: 16,
+    gap: 12,
   },
 });

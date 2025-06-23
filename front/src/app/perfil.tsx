@@ -11,8 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import Nav from "../components/Nav";
-import Top from "../components/Top";
+
 
 const PerfilScreen = () => {
   const [notificacoesPush, setNotificacoesPush] = useState(true);
@@ -115,7 +114,7 @@ const PerfilScreen = () => {
       onPress={opcao.acao}
     >
       <View style={styles.opcaoIcone}>
-        <Ionicons name={opcao.icone} size={24} color="#4A7C59" />
+        <Ionicons name={opcao.icone} size={24} color="#255336" />
       </View>
       <Text style={styles.opcaoTexto}>{opcao.titulo}</Text>
       <Ionicons name="chevron-forward" size={20} color="#999" />
@@ -124,15 +123,10 @@ const PerfilScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Top />
-
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#333" />
-          </TouchableOpacity>
-          <Text style={styles.title}>Meu Perfil</Text>
-          <View style={{ width: 24 }} />
+        {/* Cabeçalho da tela */}
+        <View style={styles.headerContainer}>
+          <Text style={styles.headerTitle}>Meu Perfil 👤</Text>
         </View>
 
         {/* Informações do usuário */}
@@ -142,7 +136,7 @@ const PerfilScreen = () => {
               <Image source={{ uri: usuario.avatar }} style={styles.avatar} />
             ) : (
               <View style={styles.avatarPlaceholder}>
-                <Ionicons name="person" size={40} color="#4A7C59" />
+                <Ionicons name="person" size={40} color="#255336" />
               </View>
             )}
             <TouchableOpacity style={styles.editarAvatarButton}>
@@ -189,21 +183,21 @@ const PerfilScreen = () => {
               <Ionicons
                 name="notifications-outline"
                 size={24}
-                color="#4A7C59"
+                color="#255336"
               />
               <Text style={styles.notificacaoTexto}>Notificações push</Text>
             </View>
             <Switch
               value={notificacoesPush}
               onValueChange={setNotificacoesPush}
-              trackColor={{ false: "#DDD", true: "#4A7C59" }}
+              trackColor={{ false: "#DDD", true: "#255336" }}
               thumbColor="#FFF"
             />
           </View>
 
           <View style={styles.notificacaoItem}>
             <View style={styles.notificacaoInfo}>
-              <Ionicons name="mail-outline" size={24} color="#4A7C59" />
+              <Ionicons name="mail-outline" size={24} color="#255336" />
               <Text style={styles.notificacaoTexto}>
                 Notificações por email
               </Text>
@@ -211,22 +205,20 @@ const PerfilScreen = () => {
             <Switch
               value={notificacoesEmail}
               onValueChange={setNotificacoesEmail}
-              trackColor={{ false: "#DDD", true: "#4A7C59" }}
+              trackColor={{ false: "#DDD", true: "#255336" }}
               thumbColor="#FFF"
             />
           </View>
 
           <View style={styles.notificacaoItem}>
             <View style={styles.notificacaoInfo}>
-              <Ionicons name="location-outline" size={24} color="#4A7C59" />
-              <Text style={styles.notificacaoTexto}>
-                Compartilhar localização
-              </Text>
+              <Ionicons name="location-outline" size={24} color="#255336" />
+              <Text style={styles.notificacaoTexto}>Localização</Text>
             </View>
             <Switch
               value={localizacao}
               onValueChange={setLocalizacao}
-              trackColor={{ false: "#DDD", true: "#4A7C59" }}
+              trackColor={{ false: "#DDD", true: "#255336" }}
               thumbColor="#FFF"
             />
           </View>
@@ -246,14 +238,13 @@ const PerfilScreen = () => {
 
         {/* Botão sair */}
         <TouchableOpacity style={styles.sairButton} onPress={sair}>
-          <Ionicons name="log-out-outline" size={24} color="#E53E3E" />
+          <Ionicons name="log-out-outline" size={24} color="#FF5722" />
           <Text style={styles.sairTexto}>Sair da conta</Text>
         </TouchableOpacity>
 
-        <View style={{ height: 100 }} />
+        {/* Espaço para o Nav */}
+        <View style={styles.navSpacer} />
       </ScrollView>
-
-      <Nav />
     </View>
   );
 };
@@ -265,34 +256,32 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 16,
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  headerContainer: {
+    padding: 16,
     alignItems: "center",
-    paddingVertical: 16,
   },
-  title: {
-    fontSize: 20,
-    fontFamily: "Poppins-SemiBold",
-    color: "#333",
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#255336",
   },
   usuarioCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
+    marginHorizontal: 16,
     marginBottom: 16,
+    borderRadius: 12,
+    padding: 20,
+    alignItems: "center",
+    elevation: 2,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 2,
   },
   avatarContainer: {
-    alignItems: "center",
-    marginBottom: 16,
     position: "relative",
+    marginBottom: 16,
   },
   avatar: {
     width: 80,
@@ -310,108 +299,123 @@ const styles = StyleSheet.create({
   editarAvatarButton: {
     position: "absolute",
     bottom: 0,
-    right: "35%",
-    backgroundColor: "#4A7C59",
+    right: 0,
+    backgroundColor: "#255336",
+    borderRadius: 16,
     width: 32,
     height: 32,
-    borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 3,
-    borderColor: "#FFF",
   },
   usuarioInfo: {
     alignItems: "center",
   },
   usuarioNome: {
     fontSize: 20,
-    fontFamily: "Poppins-SemiBold",
+    fontWeight: "bold",
     color: "#333",
     marginBottom: 4,
   },
   usuarioEmail: {
     fontSize: 14,
-    fontFamily: "Poppins-Regular",
     color: "#666",
     marginBottom: 2,
   },
   usuarioTelefone: {
     fontSize: 14,
-    fontFamily: "Poppins-Regular",
     color: "#666",
     marginBottom: 2,
   },
   usuarioEndereco: {
-    fontSize: 12,
-    fontFamily: "Poppins-Regular",
+    fontSize: 13,
     color: "#999",
     textAlign: "center",
-    marginTop: 4,
+    lineHeight: 18,
   },
   estatisticasContainer: {
     backgroundColor: "#FFFFFF",
+    marginHorizontal: 16,
+    marginBottom: 16,
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
     flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
+    elevation: 2,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 2,
   },
   estatisticaItem: {
     flex: 1,
     alignItems: "center",
   },
+  estatisticaDivisor: {
+    width: 1,
+    backgroundColor: "#E0E0E0",
+    marginHorizontal: 16,
+  },
   estatisticaNumero: {
     fontSize: 24,
-    fontFamily: "Poppins-Bold",
-    color: "#4A7C59",
+    fontWeight: "bold",
+    color: "#255336",
+    marginBottom: 4,
   },
   estatisticaTexto: {
     fontSize: 14,
-    fontFamily: "Poppins-SemiBold",
-    color: "#4A7C59",
+    fontWeight: "600",
+    color: "#255336",
+    marginBottom: 4,
     textAlign: "center",
   },
   estatisticaLabel: {
     fontSize: 12,
-    fontFamily: "Poppins-Regular",
     color: "#666",
-    marginTop: 4,
     textAlign: "center",
   },
-  estatisticaDivisor: {
-    width: 1,
-    height: 40,
-    backgroundColor: "#E0E0E0",
-    marginHorizontal: 8,
-  },
   secao: {
+    marginHorizontal: 16,
     marginBottom: 24,
   },
   secaoTitulo: {
     fontSize: 18,
-    fontFamily: "Poppins-SemiBold",
+    fontWeight: "bold",
     color: "#333",
     marginBottom: 12,
   },
-  notificacaoItem: {
+  opcaoItem: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 16,
     marginBottom: 8,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    elevation: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowRadius: 1,
+  },
+  opcaoIcone: {
+    marginRight: 16,
+  },
+  opcaoTexto: {
+    flex: 1,
+    fontSize: 16,
+    color: "#333",
+  },
+  notificacaoItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
     elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 1,
   },
   notificacaoInfo: {
     flexDirection: "row",
@@ -420,48 +424,29 @@ const styles = StyleSheet.create({
   },
   notificacaoTexto: {
     fontSize: 16,
-    fontFamily: "Poppins-Regular",
     color: "#333",
-    marginLeft: 12,
-  },
-  opcaoItem: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  opcaoIcone: {
-    marginRight: 12,
-  },
-  opcaoTexto: {
-    fontSize: 16,
-    fontFamily: "Poppins-Regular",
-    color: "#333",
-    flex: 1,
+    marginLeft: 16,
   },
   sairButton: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 16,
+    backgroundColor: "#FFF3F3",
+    marginHorizontal: 16,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
     borderWidth: 1,
-    borderColor: "#E53E3E",
+    borderColor: "#FFE0E0",
   },
   sairTexto: {
     fontSize: 16,
-    fontFamily: "Poppins-SemiBold",
-    color: "#E53E3E",
+    fontWeight: "600",
+    color: "#FF5722",
     marginLeft: 8,
+  },
+  navSpacer: {
+    height: 20,
   },
 });
 

@@ -7,7 +7,7 @@ const styles = StyleSheet.create({
   },
   innerContainer: {
     flex: 1,
-    paddingTop: 16,
+    paddingTop: 8,
     paddingHorizontal: 16,
   },
   contentWrapper: {

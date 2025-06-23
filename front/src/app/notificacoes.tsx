@@ -9,8 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import Nav from "../components/Nav";
-import Top from "../components/Top";
+
 
 type Notificacao = {
   id: string;
@@ -145,52 +144,47 @@ const NotificacoesScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Top />
-
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#333" />
-          </TouchableOpacity>
-          <Text style={styles.title}>Notificações</Text>
-          {notificacaosPendentes > 0 && (
-            <TouchableOpacity onPress={marcarTodasComoLidas}>
-              <Text style={styles.marcarTodasText}>Marcar todas</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
+      {/* Cabeçalho da tela */}
+      <View style={styles.headerContainer}>
+        <Text style={styles.headerTitle}>Notificações 🔔</Text>
         {notificacaosPendentes > 0 && (
-          <View style={styles.resumoContainer}>
-            <Text style={styles.resumoText}>
-              {notificacaosPendentes} notificação
-              {notificacaosPendentes > 1 ? "ões" : ""} não lida
-              {notificacaosPendentes > 1 ? "s" : ""}
-            </Text>
-          </View>
-        )}
-
-        {notificacoes.length > 0 ? (
-          <FlatList
-            data={notificacoes}
-            renderItem={renderNotificacao}
-            keyExtractor={(item) => item.id}
-            style={styles.lista}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.listaContent}
-          />
-        ) : (
-          <View style={styles.vazioContainer}>
-            <Ionicons name="notifications-outline" size={80} color="#CCC" />
-            <Text style={styles.vazioText}>Nenhuma notificação</Text>
-            <Text style={styles.vazioSubtext}>
-              Você receberá notificações sobre pedidos, promoções e novidades
-            </Text>
-          </View>
+          <TouchableOpacity
+            onPress={marcarTodasComoLidas}
+            style={styles.marcarButton}
+          >
+            <Text style={styles.marcarTodasText}>Marcar todas como lidas</Text>
+          </TouchableOpacity>
         )}
       </View>
 
-      <Nav />
+      {notificacaosPendentes > 0 && (
+        <View style={styles.resumoContainer}>
+          <Text style={styles.resumoText}>
+            {notificacaosPendentes} notificação
+            {notificacaosPendentes > 1 ? "ões" : ""} não lida
+            {notificacaosPendentes > 1 ? "s" : ""}
+          </Text>
+        </View>
+      )}
+
+      {notificacoes.length > 0 ? (
+        <FlatList
+          data={notificacoes}
+          renderItem={renderNotificacao}
+          keyExtractor={(item) => item.id}
+          style={styles.lista}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listaContent}
+        />
+      ) : (
+        <View style={styles.vazioContainer}>
+          <Ionicons name="notifications-outline" size={80} color="#CCC" />
+          <Text style={styles.vazioText}>Nenhuma notificação</Text>
+          <Text style={styles.vazioSubtext}>
+            Você receberá notificações sobre pedidos, promoções e novidades
+          </Text>
+        </View>
+      )}
     </View>
   );
 };
@@ -200,59 +194,63 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFF7E4",
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  headerContainer: {
+    padding: 16,
     alignItems: "center",
-    paddingVertical: 16,
   },
-  title: {
-    fontSize: 20,
-    fontFamily: "Poppins-SemiBold",
-    color: "#333",
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#255336",
+    marginBottom: 8,
+  },
+  marcarButton: {
+    backgroundColor: "#E8F5E8",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
   marcarTodasText: {
-    fontSize: 14,
-    fontFamily: "Poppins-SemiBold",
-    color: "#4A7C59",
+    fontSize: 13,
+    color: "#255336",
+    fontWeight: "600",
   },
   resumoContainer: {
-    backgroundColor: "#E8F5E8",
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: "#E3F2FD",
+    marginHorizontal: 16,
     marginBottom: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
   },
   resumoText: {
     fontSize: 14,
-    fontFamily: "Poppins-SemiBold",
-    color: "#4CAF50",
-    textAlign: "center",
+    color: "#1976D2",
+    fontWeight: "500",
   },
   lista: {
     flex: 1,
   },
   listaContent: {
-    paddingBottom: 100,
+    paddingHorizontal: 16,
+    paddingBottom: 20,
   },
   notificacaoCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+    elevation: 2,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 2,
     position: "relative",
   },
   notificacaoNaoLida: {
     borderLeftWidth: 4,
-    borderLeftColor: "#4A7C59",
+    borderLeftColor: "#2196F3",
   },
   notificacaoHeader: {
     flexDirection: "row",
@@ -262,8 +260,8 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
   notificacaoInfo: {
@@ -271,20 +269,18 @@ const styles = StyleSheet.create({
   },
   notificacaoTitulo: {
     fontSize: 16,
-    fontFamily: "Poppins-SemiBold",
+    fontWeight: "bold",
     color: "#333",
     marginBottom: 4,
   },
   notificacaoMensagem: {
     fontSize: 14,
-    fontFamily: "Poppins-Regular",
     color: "#666",
-    marginBottom: 8,
     lineHeight: 20,
+    marginBottom: 8,
   },
   notificacaoTempo: {
     fontSize: 12,
-    fontFamily: "Poppins-Regular",
     color: "#999",
   },
   removerButton: {
@@ -292,32 +288,31 @@ const styles = StyleSheet.create({
   },
   indicadorNaoLida: {
     position: "absolute",
-    top: 16,
-    right: 16,
+    top: 12,
+    right: 12,
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#4A7C59",
+    backgroundColor: "#2196F3",
   },
   vazioContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 32,
   },
   vazioText: {
-    fontSize: 18,
-    fontFamily: "Poppins-SemiBold",
-    color: "#666",
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#333",
     marginTop: 16,
-    textAlign: "center",
+    marginBottom: 8,
   },
   vazioSubtext: {
-    fontSize: 14,
-    fontFamily: "Poppins-Regular",
-    color: "#999",
-    marginTop: 8,
+    fontSize: 16,
+    color: "#666",
     textAlign: "center",
-    paddingHorizontal: 32,
+    lineHeight: 24,
   },
 });
 
