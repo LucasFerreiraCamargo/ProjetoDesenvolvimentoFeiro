@@ -1,127 +1,45 @@
-import { Dimensions, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 
-const { width } = Dimensions.get("window");
-
-const styles = StyleSheet.create({
+export default StyleSheet.create({
   nav: {
-    backgroundColor: "#FFFFFF",
-    width: width,
-    height: 60,
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    shadowColor: "rgba(0, 0, 0, 0.05)",
-    shadowOffset: { width: 0, height: -1 },
-    shadowRadius: 2,
-    elevation: 2,
-    shadowOpacity: 1,
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: "#E0E0E0",
+    paddingBottom: 20,
+    paddingTop: 8,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
+
   div: {
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
-    height: 60,
-    paddingVertical: 0,
-    paddingHorizontal: 0,
     width: "100%",
-    backgroundColor: "rgba(0, 0, 0, 0)",
-  },
-  divLayout: {
     height: 60,
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    width: "100%",
   },
-  div1: {
+
+  navItem: {
     flex: 1,
-    height: 60,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0, 0, 0, 0)",
-  },
-  div2: {
-    flex: 1,
-    height: 60,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0, 0, 0, 0)",
-  },
-  div3: {
-    flex: 1,
-    height: 60,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0, 0, 0, 0)",
-  },
-  div4: {
-    flex: 1,
-    height: 60,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0, 0, 0, 0)",
-  },
-  div5: {
-    flex: 1,
-    height: 60,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0, 0, 0, 0)",
-  },
-  div6: {
-    flex: 1,
-    height: 60,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0, 0, 0, 0)",
-  },
-  frameIcon: {
-    left: 0,
-  },
-  frameIcon1: {
-    left: 0,
-  },
-  frameIcon2: {
-    left: 0,
-  },
-  frameIcon3: {
-    left: 0,
-  },
-  frameIcon4: {
-    left: 0,
-  },
-  frameIconLayout: {
-    height: 60,
-    width: 80,
-    position: "relative",
-    alignItems: "center",
-    justifyContent: "center",
-    alignSelf: "center",
-    overflow: "visible",
-    paddingBottom: 0,
-  },
-  perfilButton: {
-    height: 60,
-    width: 80,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 8,
   },
-  perfilButtonActive: {
-    backgroundColor: "rgba(74, 124, 89, 0.1)",
-  },
-  perfilText: {
-    fontSize: 10,
-    fontFamily: "Poppins-Regular",
-    color: "#999",
-    marginTop: 2,
-  },
-  perfilTextActive: {
-    color: "#4A7C59",
-    fontFamily: "Poppins-SemiBold",
-  },
-});
 
-export default styles;
+  navText: {
+    fontSize: 10,
+    marginTop: 4,
+    textAlign: "center",
+    fontWeight: "500",
+  },
+
+  // Os estilos para div1, div2, etc. (os wrappers de CustomButton)
+  div1: { flex: 1, alignItems: "center", justifyContent: "center" },
+  div2: { flex: 1, alignItems: "center", justifyContent: "center" },
+  div3: { flex: 1, alignItems: "center", justifyContent: "center" },
+  div4: { flex: 1, alignItems: "center", justifyContent: "center" },
+  div5: { flex: 1, alignItems: "center", justifyContent: "center" },
+});
