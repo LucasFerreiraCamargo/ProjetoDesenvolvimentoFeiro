@@ -12,8 +12,7 @@ import {
   View,
 } from "react-native";
 
-import Header from "../components/Header";
-import Nav from "../components/Nav/index";
+import { useApp } from "../contexts/AppContext";
 
 const { width } = Dimensions.get("window");
 
@@ -21,26 +20,7 @@ const { width } = Dimensions.get("window");
 const banners = [
   {
     id: "1",
-    image: require("../../assets/images/banner.png"),
-    title: "FEIRA DO PEIXE",
-    subtitle: "COLÔNIA Z3",
-    date: "30 DE ABRIL",
-  },
-  {
-    id: "2",
-    image:
-      "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&h=400&fit=crop&crop=center",
-    title: "FEIRA ORGÂNICA",
-    subtitle: "PRODUTOS FRESCOS",
-    date: "TODOS OS DIAS",
-  },
-  {
-    id: "3",
-    image:
-      "https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=800&h=400&fit=crop&crop=center",
-    title: "FEIRA NOTURNA",
-    subtitle: "CENTRO DA CIDADE",
-    date: "SEXTAS E SÁBADOS",
+    imagem: require("../../assets/images/banner.png"),
   },
 ];
 
@@ -103,93 +83,15 @@ const categorias = [
   },
 ];
 
-const promocoes = [
-  {
-    id: "1",
-    produto: "Tomate Italiano",
-    preco: "R$ 5,99/kg",
-    precoAntigo: "R$ 7,50",
-    desconto: "-20%",
-    imagem:
-      "https://images.unsplash.com/photo-1546470427-227a3d7baa1b?w=400&h=300&fit=crop&crop=center",
-  },
-  {
-    id: "2",
-    produto: "Alface Crespa",
-    preco: "R$ 2,50/un",
-    precoAntigo: "R$ 3,00",
-    desconto: "-15%",
-    imagem:
-      "https://images.unsplash.com/photo-1622206151226-18ca2c9ab4a1?w=400&h=300&fit=crop&crop=center",
-  },
-  {
-    id: "3",
-    produto: "Cenoura Orgânica",
-    preco: "R$ 4,20/kg",
-    precoAntigo: "R$ 5,00",
-    desconto: "-16%",
-    imagem:
-      "https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?w=400&h=300&fit=crop&crop=center",
-  },
-];
-
-const cestas = [
-  {
-    id: "1",
-    nome: "Cesta Semanal Família",
-    itens: "8 itens variados",
-    preco: "R$ 89,90",
-    precoAntigo: "R$ 99,90",
-    desconto: "10% OFF",
-    imagem:
-      "https://images.unsplash.com/photo-1542838132-92c53300491e?w=400&h=300&fit=crop&crop=center",
-  },
-  {
-    id: "2",
-    nome: "Cesta Premium",
-    itens: "6 itens",
-    preco: "R$ 119,90",
-    precoAntigo: "R$ 139,90",
-    desconto: "15% OFF",
-    imagem:
-      "https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=400&h=300&fit=crop&crop=center",
-  },
-];
-
-const feirasAbertas = [
-  {
-    id: "1",
-    nome: "Feira Vila Mariana",
-    horario: "08:00 - 14:00",
-    status: "Aberta agora",
-    distancia: "2.5 km",
-    imagem:
-      "https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=300&h=300&fit=crop&crop=center",
-  },
-  {
-    id: "2",
-    nome: "Feira Pinheiros",
-    horario: "07:00 - 13:00",
-    status: "Abre em 2h",
-    distancia: "4.1 km",
-    imagem:
-      "https://images.unsplash.com/photo-1506976785307-8732e854ad03?w=300&h=300&fit=crop&crop=center",
-  },
-];
-
 // --- Componentes ---
 const BannerCarousel = () => {
   const scrollViewRef = useRef<ScrollView>(null);
-  const [currentIndex, setCurrentIndex] = React.useState(0);
+  const [currentBanner, setCurrentBanner] = React.useState(0);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentIndex((prevIndex) => {
+      setCurrentBanner((prevIndex) => {
         const nextIndex = (prevIndex + 1) % banners.length;
-        scrollViewRef.current?.scrollTo({
-          x: nextIndex * width,
-          animated: true,
-        });
         return nextIndex;
       });
     }, 4000);
@@ -200,7 +102,7 @@ const BannerCarousel = () => {
   const handleScroll = (event: any) => {
     const contentOffset = event.nativeEvent.contentOffset;
     const index = Math.round(contentOffset.x / width);
-    setCurrentIndex(index);
+    setCurrentBanner(index);
   };
 
   return (
@@ -216,11 +118,7 @@ const BannerCarousel = () => {
         {banners.map((banner, index) => (
           <View key={banner.id} style={styles.bannerSlide}>
             <Image
-              source={
-                typeof banner.image === "string"
-                  ? { uri: banner.image }
-                  : banner.image
-              }
+              source={banner.imagem}
               style={styles.bannerImage}
               resizeMode="cover"
             />
@@ -234,7 +132,7 @@ const BannerCarousel = () => {
             key={index}
             style={[
               styles.paginationDot,
-              index === currentIndex && styles.paginationDotActive,
+              index === currentBanner && styles.paginationDotActive,
             ]}
           />
         ))}
@@ -244,7 +142,10 @@ const BannerCarousel = () => {
 };
 
 const CategoriaItem = ({ item }: { item: any }) => (
-  <TouchableOpacity style={styles.categoriaCard}>
+  <TouchableOpacity
+    style={styles.categoriaCard}
+    onPress={() => router.push(`/busca?categoria=${item.id}`)}
+  >
     <View style={[styles.categoriaIconCircle, { backgroundColor: item.color }]}>
       <Ionicons name={item.icon as any} size={32} color={item.iconColor} />
     </View>
@@ -272,48 +173,114 @@ const CardCesta = ({ item }: { item: any }) => (
       <Text style={styles.cestaNome} numberOfLines={1}>
         {item.nome}
       </Text>
-      <Text style={styles.cestaItens}>{item.itens}</Text>
-
-      <View style={styles.cestaPrecoContainer}>
-        <Text style={styles.cestaPreco}>{item.preco}</Text>
-        {item.precoAntigo && (
-          <Text style={styles.cestaPrecoAntigo}>{item.precoAntigo}</Text>
-        )}
-      </View>
-    </View>
-  </TouchableOpacity>
-);
-
-const CardProduto = ({ item }: { item: any }) => (
-  <TouchableOpacity
-    style={styles.cardProduto}
-    onPress={() => router.push(`/produtos/${item.id}`)}
-  >
-    <View style={styles.cardImgContainer}>
-      <Image
-        source={{ uri: item.imagem }}
-        style={styles.cardImage}
-        resizeMode="cover"
-      />
-      <View style={styles.cardDesconto}>
-        <Text style={styles.cardDescontoText}>{item.desconto}</Text>
-      </View>
-    </View>
-
-    <View style={styles.cardContent}>
-      <Text style={styles.cardNome} numberOfLines={1}>
-        {item.produto || item.nome}
+      <Text style={styles.cestaItens}>
+        {item.itens?.length ? `${item.itens.length} itens` : "Vários produtos"}
       </Text>
 
-      <View style={styles.cardPrecoContainer}>
-        <Text style={styles.cardPreco}>{item.preco}</Text>
+      <View style={styles.cestaPrecoContainer}>
+        <Text style={styles.cestaPreco}>R$ {item.preco.toFixed(2)}</Text>
         {item.precoAntigo && (
-          <Text style={styles.cardPrecoAntigo}>{item.precoAntigo}</Text>
+          <Text style={styles.cestaPrecoAntigo}>
+            R$ {item.precoAntigo.toFixed(2)}
+          </Text>
         )}
       </View>
     </View>
   </TouchableOpacity>
 );
+
+const CardProduto = ({ item }: { item: any }) => {
+  const { state } = useApp();
+
+  const navegarParaProduto = () => {
+    console.log("Tentando navegar para produto:", item.id);
+
+    // Encontrar o feirante que tem esse produto
+    let feiranteEncontrado = null;
+    let feiraEncontrada = null;
+
+    for (const feira of state.feiras) {
+      for (const feirante of feira.feirantes) {
+        const produtoExiste = feirante.produtos.some(
+          (p: any) => p.id === item.id
+        );
+        if (produtoExiste) {
+          feiranteEncontrado = feirante;
+          feiraEncontrada = feira;
+          break;
+        }
+      }
+      if (feiranteEncontrado) break;
+    }
+
+    if (feiranteEncontrado) {
+      console.log(
+        "Feirante encontrado:",
+        feiranteEncontrado.id,
+        "na feira:",
+        feiraEncontrada?.id
+      );
+      router.push(`/produtos/${feiranteEncontrado.id}`);
+    } else {
+      console.warn("Feirante não encontrado para produto:", item.id);
+      // Fallback: usar o primeiro feirante disponível que tenha produtos
+      const feiraComFeirantes = state.feiras.find(
+        (feira) =>
+          feira.feirantes.length > 0 &&
+          feira.feirantes.some((f) => f.produtos.length > 0)
+      );
+
+      if (feiraComFeirantes) {
+        const feiranteComProdutos = feiraComFeirantes.feirantes.find(
+          (f) => f.produtos.length > 0
+        );
+        if (feiranteComProdutos) {
+          console.log(
+            "Usando fallback - navegando para:",
+            feiranteComProdutos.id
+          );
+          router.push(`/produtos/${feiranteComProdutos.id}`);
+        } else {
+          console.error("Nenhum feirante com produtos encontrado");
+        }
+      } else {
+        console.error("Nenhuma feira com feirantes disponível");
+      }
+    }
+  };
+
+  return (
+    <TouchableOpacity style={styles.cardProduto} onPress={navegarParaProduto}>
+      <View style={styles.cardImgContainer}>
+        <Image
+          source={{ uri: item.imagem }}
+          style={styles.cardImage}
+          resizeMode="cover"
+        />
+        {item.desconto && (
+          <View style={styles.cardDesconto}>
+            <Text style={styles.cardDescontoText}>-15%</Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.cardContent}>
+        <Text style={styles.cardNome} numberOfLines={2}>
+          {item.nome}
+        </Text>
+
+        <Text style={styles.cardUnidade}>Por {item.unidade}</Text>
+
+        <View style={styles.cardPrecoContainer}>
+          <Text style={styles.cardPreco}>R$ {item.preco.toFixed(2)}</Text>
+          <Text style={styles.cardPrecoAntigo}>
+            R$ {(item.preco * 1.18).toFixed(2)}
+          </Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+};
 
 const FeiraItem = ({ item }: { item: any }) => (
   <TouchableOpacity style={styles.feiraCard}>
@@ -328,7 +295,10 @@ const FeiraItem = ({ item }: { item: any }) => (
       <Text style={styles.feiraNome}>{item.nome}</Text>
       <Text style={styles.feiraHorario}>{item.horario}</Text>
       <View style={styles.feiraButtons}>
-        <TouchableOpacity style={styles.feiraButtonPrimary}>
+        <TouchableOpacity
+          style={styles.feiraButtonPrimary}
+          onPress={() => router.push(`/feirantes/${item.id}`)}
+        >
           <Text style={styles.feiraButtonPrimaryText}>Ver Feirantes</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -344,9 +314,28 @@ const FeiraItem = ({ item }: { item: any }) => (
 
 // --- Tela Principal ---
 export default function HomeScreen() {
+  const { state, getAllCestas, getAllProdutos } = useApp();
+
+  // Verificar se o context está carregado
+  if (!state || !state.feiras) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Carregando...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // Usar dados do context
+  const promocoes = getAllProdutos().slice(0, 5); // Primeiros 5 produtos como promoção
+  const cestas = getAllCestas().slice(0, 3); // Primeiras 3 cestas
+  const feirasAbertas = state.feiras.filter(
+    (feira) => feira.status === "Aberto"
+  );
+
   return (
     <View style={styles.container}>
-      <Header />
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Carrossel de Banners */}
         <BannerCarousel />
@@ -380,7 +369,9 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Promoções do Dia</Text>
-            <TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push("/busca?categoria=promocoes")}
+            >
               <Text style={styles.verTodos}>Ver todas</Text>
             </TouchableOpacity>
           </View>
@@ -398,7 +389,9 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Cestas em Oferta</Text>
-            <TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push("/busca?categoria=cestas")}
+            >
               <Text style={styles.verTodos}>Ver todas</Text>
             </TouchableOpacity>
           </View>
@@ -430,7 +423,6 @@ export default function HomeScreen() {
         {/* Espaço para o Nav */}
         <View style={styles.navSpacer} />
       </ScrollView>
-      <Nav />
     </View>
   );
 }
@@ -575,9 +567,8 @@ const styles = StyleSheet.create({
   },
 
   horizontalList: {
-    gap: 16,
     paddingLeft: 20,
-    paddingRight: 20,
+    paddingRight: 8,
     paddingBottom: 15,
   },
   verticalList: {
@@ -589,18 +580,18 @@ const styles = StyleSheet.create({
   cardProduto: {
     backgroundColor: "#fff",
     borderRadius: 16,
-    width: 200,
-    height: 260,
+    width: 170,
+    height: 240,
     elevation: 3,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     overflow: "hidden",
-    marginRight: 4,
+    marginRight: 12,
   },
   cardImgContainer: {
-    height: 160,
+    height: 130,
     position: "relative",
   },
   cardImage: {
@@ -624,15 +615,20 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     flex: 1,
-    padding: 16,
+    padding: 12,
     justifyContent: "flex-start",
   },
   cardNome: {
     fontWeight: "bold",
     color: "#333",
-    fontSize: 16,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 18,
     marginBottom: 4,
+  },
+  cardUnidade: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 8,
   },
   cardPrecoContainer: {
     marginTop: "auto",
@@ -640,13 +636,13 @@ const styles = StyleSheet.create({
   cardPreco: {
     color: "#2D5D31",
     fontWeight: "bold",
-    fontSize: 18,
+    fontSize: 16,
     marginBottom: 2,
   },
   cardPrecoAntigo: {
     color: "#999",
     textDecorationLine: "line-through",
-    fontSize: 14,
+    fontSize: 12,
   },
 
   // Cards de Cesta
@@ -795,5 +791,16 @@ const styles = StyleSheet.create({
 
   navSpacer: {
     height: 32,
+  },
+
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
   },
 });
