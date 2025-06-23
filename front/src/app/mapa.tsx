@@ -1,371 +1,363 @@
 import { Ionicons } from "@expo/vector-icons";
-import * as Location from "expo-location";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import * as React from "react";
+import { useRef, useState } from "react";
 import {
   Alert,
-  FlatList,
-  Modal,
+  Dimensions,
+  Image,
+  Linking,
+  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import MapView, { Marker, Polyline, Region } from "react-native-maps";
-import Nav from "../components/Nav";
-import Top from "../components/Top";
+import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 
-type Feira = {
-  id: string;
-  name: string;
-  neighborhood: string;
-  hours: string;
-  isOpen: boolean;
-  latitude: number;
-  longitude: number;
-  distance: string;
-};
+import Nav from "../components/Nav/index";
 
-const feiras: Feira[] = [
+const { width, height } = Dimensions.get("window");
+
+const feiras = [
   {
     id: "1",
-    name: "Feira Central",
-    neighborhood: "Centro",
-    hours: "7h às 14h",
-    isOpen: true,
-    latitude: -31.7654,
-    longitude: -52.3376,
-    distance: "1.2 km",
+    nome: "Feira Central",
+    endereco: "Av. Principal, 1234 - Centro",
+    status: "Aberto",
+    feirantes: "12 Feirantes",
+    imagem: require("../../assets/images/banner.png"),
+    coordinate: {
+      latitude: -31.7654,
+      longitude: -52.3376,
+    },
   },
   {
     id: "2",
-    name: "Feira do Lobão",
-    neighborhood: "Fragata",
-    hours: "8h às 12h",
-    isOpen: true,
-    latitude: -31.77,
-    longitude: -52.34,
-    distance: "2.1 km",
+    nome: "Feira Vila Mariana",
+    endereco: "Rua das Flores, 123 - Vila Mariana",
+    status: "Aberto",
+    feirantes: "8 Feirantes",
+    imagem: require("../../assets/images/banner.png"),
+    coordinate: {
+      latitude: -31.7704,
+      longitude: -52.3426,
+    },
   },
   {
     id: "3",
-    name: "Feira Vila Mariana",
-    neighborhood: "Vila Mariana",
-    hours: "6h às 13h",
-    isOpen: false,
-    latitude: -31.76,
-    longitude: -52.33,
-    distance: "3.5 km",
+    nome: "Feira Pinheiros",
+    endereco: "Av. Pinheiros, 456 - Pinheiros",
+    status: "Fechado",
+    feirantes: "15 Feirantes",
+    imagem: require("../../assets/images/banner.png"),
+    coordinate: {
+      latitude: -31.7604,
+      longitude: -52.3326,
+    },
   },
   {
     id: "4",
-    name: "Feira Pinheiros",
-    neighborhood: "Pinheiros",
-    hours: "7h às 15h",
-    isOpen: true,
-    latitude: -31.775,
-    longitude: -52.345,
-    distance: "1.8 km",
+    nome: "Feira do Produtor",
+    endereco: "Praça Central, s/n - Centro",
+    status: "Fechado",
+    feirantes: "10 Feirantes",
+    imagem: require("../../assets/images/banner.png"),
+    coordinate: {
+      latitude: -31.7684,
+      longitude: -52.3406,
+    },
+  },
+  {
+    id: "5",
+    nome: "Feira Orgânica",
+    endereco: "Rua Verde, 789 - Ecológico",
+    status: "Aberto",
+    feirantes: "6 Feirantes",
+    imagem: require("../../assets/images/banner.png"),
+    coordinate: {
+      latitude: -31.7634,
+      longitude: -52.3356,
+    },
   },
 ];
 
-const MapaScreen = () => {
-  const [location, setLocation] = useState<Location.LocationObject | null>(
-    null
-  );
-  const [region, setRegion] = useState<Region>({
-    latitude: -31.7654,
-    longitude: -52.3376,
-    latitudeDelta: 0.0922,
-    longitudeDelta: 0.0421,
-  });
-  const [selectedFeira, setSelectedFeira] = useState<Feira | null>(null);
-  const [routeCoordinates, setRouteCoordinates] = useState<
-    { latitude: number; longitude: number }[]
-  >([]);
-  const [showLocationModal, setShowLocationModal] = useState(false);
-  const [customAddress, setCustomAddress] = useState("");
-
-  useEffect(() => {
-    (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert(
-          "Permissão negada",
-          "Precisamos da sua localização para mostrar as feiras próximas."
-        );
-        return;
-      }
-
-      let location = await Location.getCurrentPositionAsync({});
-      setLocation(location);
-      setRegion({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        latitudeDelta: 0.0922,
-        longitudeDelta: 0.0421,
-      });
-    })();
-  }, []);
-
-  const centerOnUser = async () => {
-    if (location) {
-      setRegion({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        latitudeDelta: 0.0922,
-        longitudeDelta: 0.0421,
-      });
-    }
-  };
-
-  const changeLocation = async () => {
-    setShowLocationModal(true);
-  };
-
-  const setCustomLocation = async () => {
-    if (!customAddress.trim()) {
-      Alert.alert("Erro", "Por favor, digite um endereço válido");
-      return;
-    }
-
-    try {
-      // Simulando geocoding - em um app real, você usaria um serviço como Google Geocoding
-      // Por enquanto, vamos usar coordenadas fixas para demonstração
-      const geocodedLocation = await Location.geocodeAsync(customAddress);
-
-      if (geocodedLocation.length > 0) {
-        const newLocation = {
-          coords: {
-            latitude: geocodedLocation[0].latitude,
-            longitude: geocodedLocation[0].longitude,
-            altitude: null,
-            accuracy: null,
-            altitudeAccuracy: null,
-            heading: null,
-            speed: null,
-          },
-          timestamp: Date.now(),
-        };
-
-        setLocation(newLocation);
-        setRegion({
-          latitude: geocodedLocation[0].latitude,
-          longitude: geocodedLocation[0].longitude,
-          latitudeDelta: 0.0922,
-          longitudeDelta: 0.0421,
-        });
-        setShowLocationModal(false);
-        setCustomAddress("");
-      } else {
-        Alert.alert("Erro", "Endereço não encontrado");
-      }
-    } catch (error) {
-      Alert.alert("Erro", "Não foi possível encontrar o endereço");
-    }
-  };
-
-  const traceRouteToFeira = (feira: Feira) => {
-    if (!location) {
-      Alert.alert("Erro", "Localização não disponível");
-      return;
-    }
-
-    // Simulando uma rota simples (linha reta)
-    // Em um app real, você usaria um serviço de roteamento como Google Directions API
-    const route = [
-      {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      },
-      {
-        latitude: feira.latitude,
-        longitude: feira.longitude,
-      },
-    ];
-
-    setRouteCoordinates(route);
-    setSelectedFeira(feira);
-
-    // Ajustar a região para mostrar toda a rota
-    const minLat = Math.min(location.coords.latitude, feira.latitude);
-    const maxLat = Math.max(location.coords.latitude, feira.latitude);
-    const minLng = Math.min(location.coords.longitude, feira.longitude);
-    const maxLng = Math.max(location.coords.longitude, feira.longitude);
-
-    const latDelta = (maxLat - minLat) * 1.5;
-    const lngDelta = (maxLng - minLng) * 1.5;
-
-    setRegion({
-      latitude: (minLat + maxLat) / 2,
-      longitude: (minLng + maxLng) / 2,
-      latitudeDelta: Math.max(latDelta, 0.01),
-      longitudeDelta: Math.max(lngDelta, 0.01),
-    });
-
-    Alert.alert(
-      "Rota traçada",
-      `Rota até ${feira.name} foi traçada no mapa. Distância aproximada: ${feira.distance}`,
-      [
-        {
-          text: "Ver feirantes",
-          onPress: () => router.push(`/feirantes/${feira.id}`),
-        },
-        { text: "OK" },
-      ]
-    );
-  };
-
-  const clearRoute = () => {
-    setRouteCoordinates([]);
-    setSelectedFeira(null);
-  };
-
-  const renderFeiraCard = ({ item }: { item: Feira }) => (
-    <TouchableOpacity
-      style={styles.feiraCard}
-      onPress={() => traceRouteToFeira(item)}
-    >
-      <View style={styles.feiraCardHeader}>
-        <Text style={styles.feiraCardName}>{item.name}</Text>
-        <View
-          style={[
-            styles.statusBadge,
-            { backgroundColor: item.isOpen ? "#4CAF50" : "#FF5722" },
-          ]}
-        >
-          <Text style={styles.statusText}>
-            {item.isOpen ? "Aberto" : "Fechado"}
-          </Text>
-        </View>
-      </View>
-      <Text style={styles.feiraCardNeighborhood}>{item.neighborhood}</Text>
-      <Text style={styles.feiraCardHours}>{item.hours}</Text>
-      <Text style={styles.feiraCardDistance}>{item.distance}</Text>
-    </TouchableOpacity>
-  );
-
+const FeiraCard = ({
+  feira,
+  onVerFeirantes,
+  onTracarRota,
+  isSelected,
+  onCardPress,
+  showSelection = true,
+}: {
+  feira: any;
+  onVerFeirantes: () => void;
+  onTracarRota: () => void;
+  isSelected: boolean;
+  onCardPress: () => void;
+  showSelection?: boolean;
+}) => {
   return (
-    <View style={styles.container}>
-      <Top />
-      <View style={styles.mapContainer}>
-        <MapView
-          style={styles.map}
-          region={region}
-          onRegionChangeComplete={setRegion}
-          showsUserLocation={true}
-          showsMyLocationButton={false}
-          mapType="standard"
-        >
-          {feiras.map((feira) => (
-            <Marker
-              key={feira.id}
-              coordinate={{
-                latitude: feira.latitude,
-                longitude: feira.longitude,
-              }}
-              title={feira.name}
-              description={`${feira.neighborhood} - ${feira.hours}`}
-              pinColor={feira.isOpen ? "#4CAF50" : "#FF5722"}
-              onPress={() => traceRouteToFeira(feira)}
-            />
-          ))}
-
-          {/* Mostrar rota se existir */}
-          {routeCoordinates.length > 0 && (
-            <Polyline
-              coordinates={routeCoordinates}
-              strokeColor="#4A7C59"
-              strokeWidth={4}
-              lineDashPattern={[5, 5]}
-            />
-          )}
-        </MapView>
-
-        <TouchableOpacity style={styles.locationButton} onPress={centerOnUser}>
-          <Ionicons name="locate" size={24} color="#4A7C59" />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.changeLocationButton}
-          onPress={changeLocation}
-        >
-          <Ionicons name="search" size={24} color="#4A7C59" />
-        </TouchableOpacity>
-
-        {routeCoordinates.length > 0 && (
-          <TouchableOpacity
-            style={styles.clearRouteButton}
-            onPress={clearRoute}
-          >
-            <Ionicons name="close" size={24} color="#FF5722" />
-          </TouchableOpacity>
-        )}
-
-        <View style={styles.feirasListContainer}>
-          <Text style={styles.feirasListTitle}>Feiras Próximas</Text>
-          <Text style={styles.feirasListSubtitle}>
-            Toque em uma feira para traçar rota
-          </Text>
-          <FlatList
-            data={feiras}
-            renderItem={renderFeiraCard}
-            keyExtractor={(item) => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.feirasList}
-          />
-        </View>
-      </View>
-
-      {/* Modal para mudar localização */}
-      <Modal
-        visible={showLocationModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowLocationModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Mudar Localização</Text>
-            <TextInput
-              style={styles.addressInput}
-              placeholder="Digite seu endereço..."
-              value={customAddress}
-              onChangeText={setCustomAddress}
-              multiline={false}
-            />
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => {
-                  setShowLocationModal(false);
-                  setCustomAddress("");
-                }}
-              >
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.confirmButton]}
-                onPress={setCustomLocation}
-              >
-                <Text style={styles.confirmButtonText}>Confirmar</Text>
-              </TouchableOpacity>
+    <TouchableOpacity
+      style={[
+        styles.feiraCard,
+        showSelection && isSelected && styles.selectedFeiraCard,
+      ]}
+      onPress={onCardPress}
+      activeOpacity={0.8}
+    >
+      <View style={styles.cardContent}>
+        <Image source={feira.imagem} style={styles.feiraImage} />
+        <View style={styles.feiraInfo}>
+          <Text style={styles.feiraNome}>{feira.nome}</Text>
+          <View style={styles.feiraDetailsRow}>
+            <Ionicons name="location-outline" size={14} color="#666" />
+            <Text style={styles.feiraEndereco}>{feira.endereco}</Text>
+          </View>
+          <View style={styles.feiraStatusRow}>
+            <View
+              style={[
+                styles.statusBadge,
+                {
+                  backgroundColor:
+                    feira.status === "Aberto" ? "#10B981" : "#EF4444",
+                },
+              ]}
+            >
+              <Text style={styles.statusText}>{feira.status}</Text>
+            </View>
+            <View style={styles.feirantesInfo}>
+              <Ionicons name="people-outline" size={14} color="#666" />
+              <Text style={styles.feiranteCount}>{feira.feirantes}</Text>
             </View>
           </View>
-        </View>
-      </Modal>
 
-      <Nav />
+          {/* Botões de Ação */}
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={styles.verFeirantesButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                onVerFeirantes();
+              }}
+            >
+              <Ionicons name="storefront-outline" size={16} color="#FFF" />
+              <Text style={styles.buttonText}>Ver Feirantes</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.tracarRotaButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                onTracarRota();
+              }}
+            >
+              <Ionicons name="navigate-outline" size={16} color="#255336" />
+              <Text style={styles.tracarRotaText}>Traçar Rota</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+const CustomPin = ({
+  feira,
+  isSelected,
+}: {
+  feira: any;
+  isSelected: boolean;
+}) => {
+  console.log(`Pin ${feira.nome} - isSelected:`, isSelected);
+
+  return (
+    <View
+      style={[
+        styles.customPin,
+        {
+          backgroundColor: feira.status === "Aberto" ? "#10B981" : "#EF4444",
+          width: isSelected ? 40 : 32,
+          height: isSelected ? 40 : 32,
+          borderRadius: isSelected ? 20 : 16,
+        },
+        isSelected && styles.selectedPin,
+      ]}
+    >
+      <Ionicons name="storefront" size={isSelected ? 20 : 16} color="#FFF" />
     </View>
   );
 };
 
+export default function MapaScreen() {
+  const [highlightedPinId, setHighlightedPinId] = useState<string | null>(null);
+  const mapRef = useRef<MapView>(null);
+  const scrollRef = useRef<ScrollView>(null);
+
+  const initialRegion = {
+    latitude: -31.7654,
+    longitude: -52.3376,
+    latitudeDelta: 0.0922,
+    longitudeDelta: 0.0421,
+  };
+
+  const handleMarkerPress = (feira: any) => {
+    // Mesma lógica do card: apenas destaca o pin e rola para o card
+    setHighlightedPinId(feira.id); // Destaca o pin
+
+    // Rola para o card correspondente na lista
+    const index = feiras.findIndex((f) => f.id === feira.id);
+    scrollRef.current?.scrollTo({
+      x: index * (width * 0.85 + 12),
+      animated: true,
+    });
+
+    console.log("Pin clicado:", feira.nome, "ID:", feira.id);
+  };
+
+  const handleCardPress = (feira: any) => {
+    // Apenas destaca o pin, sem mostrar o card overlay
+    console.log("Card clicado:", feira.nome, "ID:", feira.id);
+    setHighlightedPinId(feira.id); // Destaca o pin
+    console.log("Pin destacado:", feira.id);
+  };
+
+  const handleVerFeirantes = (feira: any) => {
+    Alert.alert("Feirantes", `Navegando para os feirantes da ${feira.nome}`, [
+      {
+        text: "OK",
+        onPress: () => {
+          router.push(`/feirantes/${feira.id}`);
+        },
+      },
+    ]);
+  };
+
+  const handleTracarRota = (feira: any) => {
+    const { latitude, longitude } = feira.coordinate;
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`;
+
+    Linking.canOpenURL(url).then((supported) => {
+      if (supported) {
+        Linking.openURL(url);
+      } else {
+        Alert.alert("Erro", "Não foi possível abrir o aplicativo de mapas");
+      }
+    });
+  };
+
+  return (
+    <View style={styles.container}>
+      {/* Header Personalizado */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() => router.back()}
+        >
+          <Ionicons name="arrow-back" size={24} color="#000" />
+        </TouchableOpacity>
+
+        <Text style={styles.headerTitle}>Feiras Próximas</Text>
+
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.headerButton}>
+            <Ionicons name="options" size={24} color="#000" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerButton}>
+            <Ionicons name="search" size={24} color="#000" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Google Maps */}
+      <View style={styles.mapContainer}>
+        <MapView
+          ref={mapRef}
+          provider={PROVIDER_GOOGLE}
+          style={styles.map}
+          initialRegion={initialRegion}
+          showsUserLocation={true}
+          showsMyLocationButton={true}
+        >
+          {feiras.map((feira) => {
+            const isSelected = highlightedPinId === feira.id;
+            console.log(
+              `Marker ${feira.nome} (${feira.id}) - highlightedPinId: ${highlightedPinId} - isSelected: ${isSelected}`
+            );
+
+            return (
+              <Marker
+                key={feira.id}
+                coordinate={feira.coordinate}
+                onPress={() => handleMarkerPress(feira)}
+              >
+                <CustomPin feira={feira} isSelected={isSelected} />
+              </Marker>
+            );
+          })}
+        </MapView>
+
+        {/* Lista de Todas as Feiras - SEMPRE VISÍVEL */}
+        <View style={styles.feirasListContainer}>
+          <ScrollView
+            ref={scrollRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.feirasScrollContent}
+            style={styles.feirasScroll}
+            decelerationRate="fast"
+            snapToInterval={width * 0.85 + 12}
+            snapToAlignment="start"
+          >
+            {feiras.map((feira) => (
+              <FeiraCard
+                key={feira.id}
+                feira={feira}
+                onVerFeirantes={() => handleVerFeirantes(feira)}
+                onTracarRota={() => handleTracarRota(feira)}
+                isSelected={highlightedPinId === feira.id}
+                onCardPress={() => handleCardPress(feira)}
+                showSelection={false}
+              />
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+
+      <Nav />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFF7E4",
+    backgroundColor: "#FFF",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#FFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E0E0E0",
+    zIndex: 1000,
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#000",
+  },
+  headerActions: {
+    flexDirection: "row",
   },
   mapContainer: {
     flex: 1,
@@ -374,194 +366,203 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
   },
-  locationButton: {
-    position: "absolute",
-    top: 20,
-    right: 20,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 25,
-    width: 50,
-    height: 50,
-    justifyContent: "center",
+  customPin: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
+    justifyContent: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
     elevation: 5,
+    position: "relative",
   },
-  changeLocationButton: {
-    position: "absolute",
-    top: 80,
-    right: 20,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 25,
-    width: 50,
-    height: 50,
-    justifyContent: "center",
-    alignItems: "center",
+  selectedPin: {
+    borderWidth: 3,
+    borderColor: "#FFF",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
+    elevation: 12,
   },
-  clearRouteButton: {
+  pinGlow: {
     position: "absolute",
-    top: 140,
-    right: 20,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 25,
-    width: 50,
-    height: 50,
-    justifyContent: "center",
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.3)",
+    top: -8,
+    left: -8,
+  },
+  selectedFeiraContainer: {
+    position: "absolute",
+    bottom: 100,
+    left: 16,
+    right: 16,
+    zIndex: 2,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    backgroundColor: "#F8F9FA",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E0E0E0",
+  },
+  cardHeaderText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+  },
+  closeButton: {
+    padding: 4,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.05)",
   },
   feirasListContainer: {
     position: "absolute",
-    bottom: 0,
+    bottom: 40,
     left: 0,
     right: 0,
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 16,
-    paddingBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    zIndex: 2,
   },
-  feirasListTitle: {
-    fontSize: 18,
-    fontFamily: "Poppins-SemiBold",
-    color: "#333",
-    marginBottom: 4,
-    paddingHorizontal: 16,
-  },
-  feirasListSubtitle: {
+  listTitle: {
     fontSize: 14,
-    fontFamily: "Poppins-Regular",
+    fontWeight: "500",
     color: "#666",
+    marginLeft: 16,
     marginBottom: 12,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+  feirasScroll: {
+    maxHeight: 180,
+  },
+  feirasScrollContent: {
     paddingHorizontal: 16,
-  },
-  feirasList: {
-    paddingHorizontal: 16,
-  },
-  feiraCard: {
-    backgroundColor: "#F8F9FA",
-    borderRadius: 12,
-    padding: 12,
-    marginRight: 12,
-    width: 200,
-    borderWidth: 1,
-    borderColor: "#E9ECEF",
-  },
-  feiraCardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  feiraCardName: {
-    fontSize: 14,
-    fontFamily: "Poppins-SemiBold",
-    color: "#333",
-    flex: 1,
-  },
-  statusBadge: {
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  statusText: {
-    fontSize: 10,
-    fontFamily: "Poppins-SemiBold",
-    color: "#FFFFFF",
-  },
-  feiraCardNeighborhood: {
-    fontSize: 12,
-    fontFamily: "Poppins-Regular",
-    color: "#666",
-    marginBottom: 4,
-  },
-  feiraCardHours: {
-    fontSize: 12,
-    fontFamily: "Poppins-Regular",
-    color: "#666",
-    marginBottom: 4,
-  },
-  feiraCardDistance: {
-    fontSize: 12,
-    fontFamily: "Poppins-SemiBold",
-    color: "#4A7C59",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalContent: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 24,
-    width: "90%",
-    maxWidth: 400,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontFamily: "Poppins-SemiBold",
-    color: "#333",
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  addressInput: {
-    borderWidth: 1,
-    borderColor: "#E9ECEF",
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    fontFamily: "Poppins-Regular",
-    marginBottom: 20,
-    backgroundColor: "#F8F9FA",
-  },
-  modalButtons: {
-    flexDirection: "row",
-    justifyContent: "space-between",
     gap: 12,
   },
-  modalButton: {
+  feiraCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    marginBottom: 8,
+    width: width * 0.85,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  selectedFeiraCard: {
+    borderColor: "#255336",
+    elevation: 8,
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+  },
+  cardContent: {
+    flexDirection: "row",
+    padding: 16,
+  },
+  feiraImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 10,
+    marginRight: 14,
+  },
+  feiraInfo: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
+  },
+  feiraNome: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#000",
+    marginBottom: 4,
+  },
+  feiraDetailsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  feiraEndereco: {
+    fontSize: 13,
+    color: "#666",
+    marginLeft: 4,
+    flex: 1,
+  },
+  feiraStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  statusText: {
+    color: "#FFF",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  feirantesInfo: {
+    flexDirection: "row",
     alignItems: "center",
   },
-  cancelButton: {
-    backgroundColor: "#F8F9FA",
-    borderWidth: 1,
-    borderColor: "#E9ECEF",
-  },
-  confirmButton: {
-    backgroundColor: "#4A7C59",
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontFamily: "Poppins-SemiBold",
+  feiranteCount: {
+    fontSize: 13,
     color: "#666",
+    marginLeft: 3,
   },
-  confirmButtonText: {
-    fontSize: 16,
-    fontFamily: "Poppins-SemiBold",
-    color: "#FFFFFF",
+  actionButtons: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  verFeirantesButton: {
+    flex: 1,
+    backgroundColor: "#255336",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  tracarRotaButton: {
+    flex: 1,
+    backgroundColor: "#F0F9FF",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    borderWidth: 1,
+    borderColor: "#255336",
+  },
+  buttonText: {
+    color: "#FFF",
+    fontWeight: "600",
+    fontSize: 12,
+  },
+  tracarRotaText: {
+    color: "#255336",
+    fontWeight: "600",
+    fontSize: 12,
   },
 });
-
-export default MapaScreen;
