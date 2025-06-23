@@ -13,7 +13,7 @@ const styles = StyleSheet.create({
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    flexWrap: "wrap", 
+    flexWrap: "wrap",
   },
   buttonImage: {
     width: 24,
@@ -21,7 +21,6 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 12,
-    fontFamily: "Poppins-Regular",
     color: "#000",
     textAlign: "center",
     marginTop: 2,
