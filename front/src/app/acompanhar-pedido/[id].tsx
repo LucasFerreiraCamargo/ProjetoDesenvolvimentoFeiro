@@ -21,6 +21,7 @@ interface StatusPedido {
 
 export default function AcompanharPedidoScreen() {
   const { id } = useLocalSearchParams();
+  // checa se é array: se for pega o primeiro elemento
   const pedidoId = Array.isArray(id) ? id[0] : id;
 
   const [statusPedido, setStatusPedido] = useState<StatusPedido[]>([

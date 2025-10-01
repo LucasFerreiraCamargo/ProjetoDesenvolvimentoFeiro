@@ -3,7 +3,9 @@
     "name": "feiro-expo",
     "slug": "feiro-expo",
     "version": "1.0.0",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "feiroexpo",
@@ -60,7 +62,9 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Este app precisa da sua localização para mostrar as feiras próximas a você."
         }
-      ]
+      ],
+      "expo-maps",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

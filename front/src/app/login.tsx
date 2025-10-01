@@ -9,11 +9,35 @@ import {
   TextInput,
   View,
 } from "react-native";
+// import { EXPO_PUBLIC_API_URL } from "@env";
 
 export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+
+  const handleLogin = async () => {
+  try {
+    const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, senha }),
+    });
+    const data = await response.json();
+
+    if (response.ok) {
+      console.log("Login OK:", data);
+      // login OK → redireciona
+      router.replace("/home");
+    } else {
+      alert(data.message || "Erro ao fazer login");
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Erro de conexão");
+  }
+};
+
 
   return (
     <View style={styles.container}>
@@ -63,7 +87,7 @@ export default function LoginScreen() {
 
           <Pressable
             style={styles.entrarButton}
-            onPress={() => router.replace("/home")}
+            onPress={handleLogin}
           >
             <Text style={styles.entrarButtonText}>Entrar</Text>
           </Pressable>

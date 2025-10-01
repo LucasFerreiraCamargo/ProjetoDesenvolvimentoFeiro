@@ -65,9 +65,9 @@ export default function OnboardingScreen() {
       <View style={styles.buttonsContainer}>
         <Pressable
           style={styles.comecarButton}
-          onPress={() => router.replace("/home")}
+          onPress={() => router.replace("/login_cadastro")}
         >
-          <Text style={styles.comecarButtonText}>Começar a comprar</Text>
+          <Text style={styles.comecarButtonText}>Cadastrar-se</Text>
         </Pressable>
 
         <Pressable
