@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   Image,
@@ -10,24 +10,31 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from "react-native";
+import { useUser } from "../contexts/UserContext";
 
 
 const PerfilScreen = () => {
   const [notificacoesPush, setNotificacoesPush] = useState(true);
   const [notificacoesEmail, setNotificacoesEmail] = useState(false);
   const [localizacao, setLocalizacao] = useState(true);
+  // Usuário vindo do contexto
+  const { user, loading, logout, updateUser } = useUser();
+  const [fetching, setFetching] = useState(false);
 
-  const usuario = {
-    nome: "Maria Silva",
-    email: "maria.silva@email.com",
-    telefone: "(11) 99999-9999",
-    endereco: "Rua das Flores, 123 - Vila Mariana, São Paulo",
-    avatar: null,
-    membro_desde: "Janeiro 2024",
-    pedidos_realizados: 15,
-    feira_favorita: "Feira Central",
-  };
+  const usuario =
+    user ||
+    ({
+      nome: "Usuário",
+      email: "",
+      telefone: "",
+      endereco: "",
+      avatar: null,
+      membro_desde: "",
+      pedidos_realizados: 0,
+      feira_favorita: "",
+    } as any);
 
   const opcoesPerfil = [
     {
@@ -100,12 +107,41 @@ const PerfilScreen = () => {
         text: "Sair",
         style: "destructive",
         onPress: () => {
-          Alert.alert("Sucesso", "Você saiu da sua conta");
+          // usar logout do contexto quando disponível
+          if (logout) logout();
           router.replace("/");
         },
       },
     ]);
   };
+
+  // Função que busca os dados completos do usuário
+  async function fetchUserDetails() {
+    if (!user || !user.id) return;
+    setFetching(true);
+    const API_BASE = (process.env.EXPO_PUBLIC_API_URL as string) || "http://localhost:3001";
+    try {
+      const headers: any = {};
+      if ((user as any).token) headers.Authorization = `Bearer ${(user as any).token}`;
+      const res = await fetch(`${API_BASE.replace(/\/$/, "")}/usuarios/${user.id}`, { headers });
+      if (!res.ok) return;
+      const full = await res.json();
+      // atualizar o contexto com os dados retornados (telefone, endereco, etc)
+      if (full) {
+        await updateUser(full as any);
+      }
+    } catch (e) {
+      console.warn("Falha ao buscar dados do usuário:", e);
+    }
+    setFetching(false);
+  }
+
+  // Ao montar ou quando mudar o usuário, busca os detalhes
+  useEffect(() => {
+    fetchUserDetails();
+  }, [user?.id]);
+
+  // (Removido pull-to-refresh: arrastar agora apenas rola o conteúdo)
 
   const renderOpcao = (opcao: any) => (
     <TouchableOpacity
@@ -123,7 +159,19 @@ const PerfilScreen = () => {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      {loading || fetching ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#255336" />
+          <Text style={{ marginTop: 12, color: "#666" }}>Carregando perfil...</Text>
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          alwaysBounceVertical={true}
+          contentContainerStyle={{ paddingBottom: 40 }}
+          keyboardShouldPersistTaps="handled"
+        >
         {/* Cabeçalho da tela */}
         <View style={styles.headerContainer}>
           <Text style={styles.headerTitle}>Meu Perfil 👤</Text>
@@ -139,7 +187,10 @@ const PerfilScreen = () => {
                 <Ionicons name="person" size={40} color="#255336" />
               </View>
             )}
-            <TouchableOpacity style={styles.editarAvatarButton}>
+            <TouchableOpacity
+              style={styles.editarAvatarButton}
+              onPress={() => router.push("/editar-perfil")}
+            >
               <Ionicons name="camera" size={16} color="#FFF" />
             </TouchableOpacity>
           </View>
@@ -152,26 +203,43 @@ const PerfilScreen = () => {
           </View>
         </View>
 
-        {/* Estatísticas */}
-        <View style={styles.estatisticasContainer}>
-          <View style={styles.estatisticaItem}>
-            <Text style={styles.estatisticaNumero}>
-              {usuario.pedidos_realizados}
-            </Text>
+        {/* Estatísticas simplificadas: apenas Pedidos + botão para ver pedidos */}
+        <View style={styles.estatisticasContainerSingle}>
+          <View style={styles.estatisticaItemSingle}>
+            <Text style={styles.estatisticaNumero}>{usuario.pedidos_realizados}</Text>
             <Text style={styles.estatisticaLabel}>Pedidos</Text>
           </View>
-          <View style={styles.estatisticaDivisor} />
-          <View style={styles.estatisticaItem}>
-            <Text style={styles.estatisticaTexto}>
-              {usuario.feira_favorita}
-            </Text>
-            <Text style={styles.estatisticaLabel}>Feira favorita</Text>
-          </View>
-          <View style={styles.estatisticaDivisor} />
-          <View style={styles.estatisticaItem}>
-            <Text style={styles.estatisticaTexto}>{usuario.membro_desde}</Text>
-            <Text style={styles.estatisticaLabel}>Membro desde</Text>
-          </View>
+          <TouchableOpacity
+            style={styles.verPedidosButton}
+            onPress={() => router.push("/editar-perfil")}
+          >
+            <Text style={styles.verPedidosText}>Ver pedidos realizados</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Lista de pedidos diretamente na página de perfil */}
+        <View style={styles.pedidosSection}>
+          <Text style={styles.sectionTitle}>Últimos Pedidos</Text>
+          {user?.pedidos && user.pedidos.length > 0 ? (
+            user.pedidos.map((p: any) => (
+              <TouchableOpacity
+                key={p.id}
+                style={styles.pedidoCard}
+                onPress={() => router.push(`/acompanhar-pedido?id=${p.id}`)}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.pedidoId}>Pedido #{p.id}</Text>
+                  <Text style={styles.pedidoMeta}>{p.data} • {p.itens?.length ?? 0} itens</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={styles.pedidoTotal}>R$ {Number(p.total || 0).toFixed(2)}</Text>
+                  <Text style={styles.pedidoStatus}>{p.status || '—'}</Text>
+                </View>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <Text style={styles.noPedidos}>Você ainda não realizou pedidos.</Text>
+          )}
         </View>
 
         {/* Configurações de notificações */}
@@ -242,9 +310,19 @@ const PerfilScreen = () => {
           <Text style={styles.sairTexto}>Sair da conta</Text>
         </TouchableOpacity>
 
+        {/* Botão editar perfil */}
+        <TouchableOpacity
+          style={[styles.sairButton, { marginTop: 8, backgroundColor: "#E8F9F1" }]}
+          onPress={() => router.push("/editar-perfil")}
+        >
+          <Ionicons name="pencil-outline" size={20} color="#255336" />
+          <Text style={[styles.sairTexto, { color: "#255336", marginLeft: 8 }]}>Editar perfil</Text>
+        </TouchableOpacity>
+
         {/* Espaço para o Nav */}
         <View style={styles.navSpacer} />
-      </ScrollView>
+        </ScrollView>
+      )}
     </View>
   );
 };
@@ -372,6 +450,34 @@ const styles = StyleSheet.create({
     color: "#666",
     textAlign: "center",
   },
+  estatisticasContainerSingle: {
+    backgroundColor: "#FFFFFF",
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  estatisticaItemSingle: {
+    alignItems: "flex-start",
+  },
+  verPedidosButton: {
+    backgroundColor: "#255336",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+  },
+  verPedidosText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
   secao: {
     marginHorizontal: 16,
     marginBottom: 24,
@@ -448,6 +554,19 @@ const styles = StyleSheet.create({
   navSpacer: {
     height: 20,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pedidosSection: { marginHorizontal: 16, marginTop: 12, marginBottom: 16 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#333', marginBottom: 8 },
+  pedidoCard: { backgroundColor: '#FFF', padding: 12, borderRadius: 10, marginBottom: 8, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#EEE' },
+  pedidoId: { fontWeight: '700', color: '#255336' },
+  pedidoMeta: { color: '#666', fontSize: 12 },
+  pedidoTotal: { fontWeight: '700', color: '#255336' },
+  pedidoStatus: { color: '#666', fontSize: 12 },
+  noPedidos: { color: '#666', fontStyle: 'italic' },
 });
 
 export default PerfilScreen;

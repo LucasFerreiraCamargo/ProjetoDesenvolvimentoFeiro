@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, usePathname } from "expo-router";
 import * as React from "react";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 import styles from "./styles";
@@ -51,9 +51,20 @@ const Header: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity onPress={handleNotificationPress}>
-          <Ionicons name="notifications-outline" size={24} color="#4A4A4A" />
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          {usePathname() === "/home" && (
+            <TouchableOpacity
+              style={{ marginRight: 12 }}
+              onPress={() => router.push("/editar-perfil")}
+            >
+              <Ionicons name="person-outline" size={24} color="#4A4A4A" />
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity onPress={handleNotificationPress}>
+            <Ionicons name="notifications-outline" size={24} color="#4A4A4A" />
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );

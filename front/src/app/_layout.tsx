@@ -7,6 +7,7 @@ import Header from "../components/Header";
 import Nav from "../components/Nav";
 import { AppProvider } from "../contexts/AppContext";
 import { CestaProvider } from "../contexts/CestaContext";
+import { UserProvider } from "../contexts/UserContext";
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -32,7 +33,8 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AppProvider>
-        <CestaProvider>
+        <UserProvider>
+          <CestaProvider>
           <SafeAreaView style={styles.container} edges={[]}>
             {shouldShowHeaderNav && !hasCustomHeader && <Header />}
             <View style={styles.content}>
@@ -40,7 +42,8 @@ export default function RootLayout() {
             </View>
             {shouldShowHeaderNav && <Nav />}
           </SafeAreaView>
-        </CestaProvider>
+          </CestaProvider>
+        </UserProvider>
       </AppProvider>
     </SafeAreaProvider>
   );

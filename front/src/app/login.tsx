@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
+import { useUser } from "../contexts/UserContext";
 import {
   Image,
   Pressable,
@@ -15,28 +16,51 @@ export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const { setUser } = useUser();
 
   const handleLogin = async () => {
-  try {
-    const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, senha }),
-    });
-    const data = await response.json();
+    const API_BASE = (process.env.EXPO_PUBLIC_API_URL as string) || "http://localhost:3001";
+    try {
+      const response = await fetch(`${API_BASE.replace(/\/$/, "")}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, senha }),
+      });
 
-    if (response.ok) {
+      const data = await response.json();
+
+      if (!response.ok) {
+        // a API do back retorna { erro: 'mensagem' }
+        alert(data.erro || data.message || "Erro ao fazer login");
+        return;
+      }
+
+      // resposta esperada: { id, nome, email, nivel, token }
       console.log("Login OK:", data);
-      // login OK → redireciona
+
+      // salva usuário no contexto (e AsyncStorage via UserContext)
+      try {
+        setUser({
+          id: data.id,
+          nome: data.nome,
+          email: data.email,
+          // token e nivel retornados pela API
+          token: data.token,
+          nivel: data.nivel as any,
+          avatar: undefined,
+          membro_desde: undefined,
+        } as any);
+      } catch (e) {
+        console.warn("Falha ao salvar usuário no contexto:", e);
+      }
+
+      // navega para home
       router.replace("/home");
-    } else {
-      alert(data.message || "Erro ao fazer login");
+    } catch (err) {
+      console.error(err);
+      alert("Erro de conexão");
     }
-  } catch (err) {
-    console.error(err);
-    alert("Erro de conexão");
-  }
-};
+  };
 
 
   return (
