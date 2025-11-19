@@ -12,7 +12,7 @@ import {
   View,
   ActivityIndicator,
 } from "react-native";
-import { useUser } from "../contexts/UserContext";
+import { useUser } from "../../contexts/UserContext";
 
 
 const PerfilScreen = () => {

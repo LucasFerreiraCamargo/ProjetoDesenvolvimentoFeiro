@@ -12,8 +12,8 @@ import {
   View,
 } from "react-native";
 
-import { useApp } from "../contexts/AppContext";
-import { useCesta } from "../contexts/CestaContext";
+import { useApp } from "../../contexts/AppContext";
+import { useCesta } from "../../contexts/CestaContext";
 
 interface CestaRecorrente {
   id: string;
@@ -294,7 +294,7 @@ export default function CestasRecorrentesScreen() {
           onPress: () => {
             setMostrarFormulario(false);
             // Redirecionar para a página recorrente sem o parâmetro "nova"
-            router.replace("/recorrente");
+            router.replace("/");
           },
         },
       ]
@@ -305,7 +305,7 @@ export default function CestasRecorrentesScreen() {
     setMostrarFormulario(false);
     // Se veio com parâmetro "nova", redirecionar para a página sem o parâmetro
     if (params.nova === "true") {
-      router.replace("/recorrente");
+      router.replace("/");
     } else {
       router.back();
     }

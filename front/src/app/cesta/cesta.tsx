@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 
-import { ItemCesta, useCesta } from "../contexts/CestaContext";
+import { ItemCesta, useCesta } from "../../contexts/CestaContext";
 
 // Fotos do Unsplash para produtos
 const produtoImages: { [key: string]: string } = {

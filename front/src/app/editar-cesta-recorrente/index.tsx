@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { CestaRecorrente, ItemCesta, useApp } from "../contexts/AppContext";
+import { CestaRecorrente, ItemCesta, useApp } from "../../contexts/AppContext";
 
 interface FrequenciaOpcao {
   id: string;

@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 
-import { useApp } from "../contexts/AppContext";
+import { useApp } from "../../contexts/AppContext";
 
 const filtrosDisponiveis = [
   "Todos",

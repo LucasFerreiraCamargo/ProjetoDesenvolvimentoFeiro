@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { useUser } from "../contexts/UserContext";
+import { useUser } from "../../contexts/UserContext";
 import {
   Image,
   Pressable,
@@ -9,17 +9,24 @@ import {
   Text,
   TextInput,
   View,
+  ActivityIndicator, // <--- 1. Importado aqui
 } from "react-native";
-// import { EXPO_PUBLIC_API_URL } from "@env";
 
 export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const [isLoading, setIsLoading] = useState(false); // <--- 2. Novo estado de carregamento
   const { setUser } = useUser();
 
   const handleLogin = async () => {
+    // Se já estiver carregando, não faz nada (evita duplo clique)
+    if (isLoading) return;
+
+    setIsLoading(true); // <--- Ativa o loading
+
     const API_BASE = (process.env.EXPO_PUBLIC_API_URL as string) || "http://localhost:3001";
+    
     try {
       const response = await fetch(`${API_BASE.replace(/\/$/, "")}/login`, {
         method: "POST",
@@ -30,21 +37,19 @@ export default function LoginScreen() {
       const data = await response.json();
 
       if (!response.ok) {
-        // a API do back retorna { erro: 'mensagem' }
+        // Se der erro, paramos o loading aqui para mostrar o alerta
+        setIsLoading(false); 
         alert(data.erro || data.message || "Erro ao fazer login");
         return;
       }
 
-      // resposta esperada: { id, nome, email, nivel, token }
       console.log("Login OK:", data);
 
-      // salva usuário no contexto (e AsyncStorage via UserContext)
       try {
         setUser({
           id: data.id,
           nome: data.nome,
           email: data.email,
-          // token e nivel retornados pela API
           token: data.token,
           nivel: data.nivel as any,
           avatar: undefined,
@@ -54,21 +59,22 @@ export default function LoginScreen() {
         console.warn("Falha ao salvar usuário no contexto:", e);
       }
 
-      // navega para home
+      // Não precisamos dar setIsLoading(false) aqui porque vamos mudar de tela
       router.replace("/home");
+      
     } catch (err) {
       console.error(err);
       alert("Erro de conexão");
+      setIsLoading(false); // <--- Desativa o loading em caso de erro de rede
     }
   };
-
 
   return (
     <View style={styles.container}>
       {/* Logo */}
       <View style={styles.logoContainer}>
         <Image
-          source={require("../../assets/images/logo.png")}
+          source={require("../../../assets/images/logo.png")}
           style={styles.logo}
           resizeMode="contain"
         />
@@ -90,6 +96,7 @@ export default function LoginScreen() {
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
+              editable={!isLoading} // Bloqueia input enquanto carrega
             />
           </View>
 
@@ -102,6 +109,7 @@ export default function LoginScreen() {
               value={senha}
               onChangeText={setSenha}
               secureTextEntry
+              editable={!isLoading} // Bloqueia input enquanto carrega
             />
           </View>
 
@@ -109,14 +117,20 @@ export default function LoginScreen() {
             <Text style={styles.forgotPasswordText}>Esqueceu a senha?</Text>
           </Pressable>
 
+          {/* --- 4. Botão Atualizado com a Animação --- */}
           <Pressable
-            style={styles.entrarButton}
+            style={[styles.entrarButton, isLoading && styles.entrarButtonDisabled]}
             onPress={handleLogin}
+            disabled={isLoading}
           >
-            <Text style={styles.entrarButtonText}>Entrar</Text>
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.entrarButtonText}>Entrar</Text>
+            )}
           </Pressable>
 
-          <Pressable style={styles.googleButton}>
+          <Pressable style={styles.googleButton} disabled={isLoading}>
             <Ionicons name="logo-google" size={20} color="#4285F4" />
             <Text style={styles.googleButtonText}>Continuar com Google</Text>
           </Pressable>
@@ -126,7 +140,7 @@ export default function LoginScreen() {
       {/* Link para criar conta */}
       <View style={styles.footerContainer}>
         <Text style={styles.footerText}>Ainda não tem uma conta? </Text>
-        <Pressable onPress={() => router.replace("/onboarding")}>
+        <Pressable onPress={() => router.replace("../onboarding/index.tsx")} disabled={isLoading}>
           <Text style={styles.footerLink}>Cadastre-se</Text>
         </Pressable>
       </View>
@@ -205,6 +219,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginTop: 8,
+  },
+  // Estilo opcional para dar feedback visual que está desabilitado
+  entrarButtonDisabled: {
+    opacity: 0.7, 
   },
   entrarButtonText: {
     color: "#FFFFFF",

@@ -10,7 +10,6 @@ import {
   View,
 } from "react-native";
 
-
 interface StatusPedido {
   id: string;
   titulo: string;

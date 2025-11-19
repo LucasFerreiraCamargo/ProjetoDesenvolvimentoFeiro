@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 
-import { Feira, useApp } from "../contexts/AppContext";
+import { Feira, useApp } from "../../contexts/AppContext";
 
 const { width, height } = Dimensions.get("window");
 

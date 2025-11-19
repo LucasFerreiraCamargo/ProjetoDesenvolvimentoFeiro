@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useApp } from "../contexts/AppContext";
+import { useApp } from "../../contexts/AppContext";
 
 type ResultadoBusca = {
   id: string;

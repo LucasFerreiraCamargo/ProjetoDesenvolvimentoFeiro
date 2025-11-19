@@ -882,7 +882,7 @@ export default function ProdutosFeiranteScreen() {
       {getTotalItens() > 0 && (
         <TouchableOpacity
           style={styles.fixedCestaButton}
-          onPress={() => router.push("/cesta")}
+          onPress={() => router.push("/cesta/cesta")}
         >
           <Ionicons name="bag" size={24} color="#FFF" />
           <View style={styles.fixedCestaBadge}>

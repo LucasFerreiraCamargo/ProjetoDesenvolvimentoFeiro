@@ -133,7 +133,8 @@ export default function PedidoConfirmadoScreen() {
               style={styles.primaryButton}
               onPress={() => {
                 const pedidoId = pedidoInfo.numero.replace("#FEIRO", "");
-                router.push(`/acompanhar-pedido?id=${pedidoId}`);
+                // router.push(`/acompanhar-pedido?id=${pedidoId}`);
+                router.push(`/acompanhar-pedido/${pedidoId}`);
               }}
             >
               <Ionicons name="car" size={20} color="#FFF" />

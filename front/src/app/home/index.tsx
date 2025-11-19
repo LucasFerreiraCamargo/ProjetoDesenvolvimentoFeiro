@@ -12,7 +12,7 @@ import {
   View,
 } from "react-native";
 
-import { useApp } from "../contexts/AppContext";
+import { useApp } from "../../contexts/AppContext";
 
 const { width } = Dimensions.get("window");
 
@@ -20,7 +20,7 @@ const { width } = Dimensions.get("window");
 const banners = [
   {
     id: "1",
-    imagem: require("../../assets/images/banner.png"),
+    imagem: require("../../../assets/images/banner.png"),
   },
 ];
 

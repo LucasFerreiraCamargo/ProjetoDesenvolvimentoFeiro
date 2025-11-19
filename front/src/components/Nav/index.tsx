@@ -2,6 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
 import * as React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
+// 1. Importamos o SafeAreaView da biblioteca correta
+import { SafeAreaView } from "react-native-safe-area-context";
 import styles from "./styles";
 
 const Nav: React.FC = () => {
@@ -11,13 +13,15 @@ const Nav: React.FC = () => {
   const navItems = [
     { name: "Início", icon: "home", route: "/home" },
     { name: "Mapa", icon: "map", route: "/mapa" },
-    { name: "Cesta", icon: "basket", route: "/cesta" },
+    { name: "Cesta", icon: "basket", route: "/cesta/cesta" },
     { name: "Recorrente", icon: "repeat", route: "/recorrente" },
     { name: "Feiras", icon: "storefront", route: "/feiras" },
   ];
 
   return (
-    <View style={styles.nav}>
+    // 2. Substituímos a View externa pelo SafeAreaView
+    // 3. Usamos edges={['bottom']} para aplicar o espaçamento APENAS na parte inferior
+    <SafeAreaView edges={['bottom']} style={styles.nav}>
       <View style={styles.div}>
         {navItems.map((item, index) => (
           <TouchableOpacity
@@ -41,7 +45,7 @@ const Nav: React.FC = () => {
           </TouchableOpacity>
         ))}
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
