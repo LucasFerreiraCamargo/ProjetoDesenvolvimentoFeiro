@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   ScrollView,
   StyleSheet,
@@ -13,9 +14,15 @@ import {
 } from "react-native";
 
 import { ItemCesta, useCesta } from "../../contexts/CestaContext";
+import { useUser } from "../../contexts/UserContext";
+
+const API_BASE =
+  (process.env.EXPO_PUBLIC_API_URL as string) || "http://localhost:3001";
 
 const FinalizaPedido = () => {
-  const { state: cestaState } = useCesta();
+  const { state: cestaState, limparCesta } = useCesta();
+  const { user } = useUser();
+  const [enviandoPedido, setEnviandoPedido] = useState(false);
   const [tipoEntrega, setTipoEntrega] = useState<"endereco" | "feira">(
     "endereco"
   );
@@ -84,7 +91,57 @@ const FinalizaPedido = () => {
     "Amanhã - Entre 14h e 18h",
   ];
 
-  const handleConfirmarPedido = () => {
+  // Converte os itens do carrinho para o formato que a API espera
+  // (mercadoria_id como number, e quantidade convertida de gramas para kg quando aplicável)
+  function montarItemsParaApi() {
+    return cestaState.itens
+      .map((item) => {
+        const mercadoriaId = Number(item.produtoId);
+        if (Number.isNaN(mercadoriaId) || mercadoriaId <= 0) return null;
+
+        // Se o item está em gramas, manda em kg pra bater com a unidade da mercadoria
+        let quantidadeApi = item.quantidade;
+        if (item.unidade === "g") {
+          quantidadeApi = item.quantidade / 1000;
+        }
+        if (quantidadeApi <= 0) return null;
+
+        return {
+          mercadoria_id: mercadoriaId,
+          quantidade: quantidadeApi,
+        };
+      })
+      .filter(
+        (it): it is { mercadoria_id: number; quantidade: number } =>
+          it !== null
+      );
+  }
+
+  // Extrai mensagem amigável de erros da API (Zod fieldErrors, string, etc.)
+  function formataErroApi(data: any): string {
+    if (!data) return "";
+    const detalhes = data.detalhes ?? data.erro ?? data.error ?? data;
+    if (!detalhes) return "";
+    if (typeof detalhes === "string") return detalhes;
+    if (detalhes && typeof detalhes === "object" && !Array.isArray(detalhes)) {
+      const linhas: string[] = [];
+      for (const k of Object.keys(detalhes)) {
+        const v = (detalhes as any)[k];
+        if (Array.isArray(v)) linhas.push(`${k}: ${v.join(", ")}`);
+        else if (typeof v === "string") linhas.push(`${k}: ${v}`);
+      }
+      if (linhas.length) return linhas.join("\n");
+    }
+    try {
+      return JSON.stringify(detalhes);
+    } catch {
+      return String(detalhes);
+    }
+  }
+
+  const handleConfirmarPedido = async () => {
+    if (enviandoPedido) return;
+
     // Validar se há itens na cesta
     if (cestaState.itens.length === 0) {
       Alert.alert(
@@ -157,8 +214,87 @@ const FinalizaPedido = () => {
       }
     }
 
-    // Se chegou até aqui, tudo está validado
-    router.push("/pedido-confirmado");
+    // ──────────────────────────────────────────────────────────────────────
+    // Persistência real do pedido na API
+    // ──────────────────────────────────────────────────────────────────────
+    if (!user || !user.id) {
+      Alert.alert(
+        "Você precisa estar logado",
+        "Faça login para finalizar o pedido."
+      );
+      router.push("/login");
+      return;
+    }
+    if (!user.token) {
+      Alert.alert(
+        "Sessão expirada",
+        "Faça login novamente para finalizar o pedido."
+      );
+      router.push("/login");
+      return;
+    }
+
+    const items = montarItemsParaApi();
+    if (items.length === 0) {
+      Alert.alert(
+        "Atenção",
+        "Nenhum item válido para enviar. Tente remover e adicionar os produtos novamente."
+      );
+      return;
+    }
+
+    const payload = {
+      usuario_id: String(user.id),
+      items,
+    };
+    console.log("[FinalizaPedido] enviando POST /pedido:", payload);
+
+    setEnviandoPedido(true);
+    try {
+      const res = await fetch(`${API_BASE.replace(/\/$/, "")}/pedido`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${user.token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        console.warn("[FinalizaPedido] API erro:", {
+          status: res.status,
+          body: data,
+        });
+        if (res.status === 401 || res.status === 403) {
+          Alert.alert(
+            "Sessão expirada",
+            "Sua sessão expirou. Faça login novamente."
+          );
+          router.push("/login");
+          return;
+        }
+        Alert.alert(
+          "Não foi possível criar o pedido",
+          formataErroApi(data) || `Erro ${res.status}`
+        );
+        return;
+      }
+
+      console.log("[FinalizaPedido] Pedido criado:", data);
+      // Limpa a cesta após o pedido ser persistido com sucesso
+      limparCesta();
+      router.push("/pedido-confirmado");
+    } catch (e: any) {
+      console.error("[FinalizaPedido] Exceção:", e);
+      Alert.alert(
+        "Erro de conexão",
+        e?.message ? `Detalhe: ${e.message}` : "Tente novamente em alguns segundos."
+      );
+    } finally {
+      setEnviandoPedido(false);
+    }
   };
 
   const formatarMoeda = (valor: number) => {
@@ -538,19 +674,23 @@ const FinalizaPedido = () => {
         <TouchableOpacity
           style={[
             styles.confirmarButton,
-            !aceitouTermos && styles.buttonDisabled,
+            (!aceitouTermos || enviandoPedido) && styles.buttonDisabled,
           ]}
           onPress={handleConfirmarPedido}
-          disabled={!aceitouTermos}
+          disabled={!aceitouTermos || enviandoPedido}
         >
-          <Text
-            style={[
-              styles.confirmarButtonText,
-              !aceitouTermos && styles.buttonTextDisabled,
-            ]}
-          >
-            Confirmar Pedido - {formatarMoeda(totalPedido)}
-          </Text>
+          {enviandoPedido ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text
+              style={[
+                styles.confirmarButtonText,
+                !aceitouTermos && styles.buttonTextDisabled,
+              ]}
+            >
+              Confirmar Pedido - {formatarMoeda(totalPedido)}
+            </Text>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.whatsappButton}>

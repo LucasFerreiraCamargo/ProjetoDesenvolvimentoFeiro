@@ -1,7 +1,11 @@
+import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import React, { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
+  Alert,
+  Image,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,8 +18,28 @@ import StatusBadge from '../../../components/admin/StatusBadge'
 import { useAdmin, useAdminGuard, useAdminTitulo } from '../../../contexts/AdminContext'
 import { adminFetch } from '../../../utils/adminApi'
 
+/**
+ * Converte um telefone do banco (pode vir com máscara) num número
+ * pronto pra ser usado em wa.me. Retorna null se não houver dígitos suficientes.
+ * Assume Brasil (55) quando vier sem código do país.
+ */
+function normalizaTelefoneParaWhatsapp(tel?: string | null): string | null {
+  if (!tel) return null
+  const digitos = String(tel).replace(/\D/g, '')
+  if (digitos.length < 10) return null // muito curto pra ser fixo+DDD válido
+  // Se já tem código de país (55), mantém. Senão prefixa.
+  if (digitos.startsWith('55') && digitos.length >= 12) return digitos
+  return `55${digitos}`
+}
+
 const STATUS_OPCOES = [
-  'PENDENTE', 'EM_PREPARACAO', 'EM_ANDAMENTO', 'EM_ROTA', 'ENTREGUE', 'FINALIZADO', 'CANCELADO',
+  'PENDENTE',
+  'EM_PREPARACAO',
+  'EM_ANDAMENTO',
+  'EM_ROTA',
+  'ENTREGUE',
+  'RETORNANDO',
+  'CANCELADO',
 ]
 
 const STATUS_LABELS: Record<string, string> = {
@@ -24,7 +48,7 @@ const STATUS_LABELS: Record<string, string> = {
   EM_ANDAMENTO: 'Em Andamento',
   EM_ROTA: 'Em Rota',
   ENTREGUE: 'Entregue',
-  FINALIZADO: 'Finalizado',
+  RETORNANDO: 'Retornando',
   CANCELADO: 'Cancelado',
 }
 
@@ -38,6 +62,7 @@ export default function PedidoDetalhe() {
 
   const [pedido, setPedido] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [erroFetch, setErroFetch] = useState<string | null>(null)
   const [novoStatus, setNovoStatus] = useState('')
   const [atualizando, setAtualizando] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
@@ -47,15 +72,29 @@ export default function PedidoDetalhe() {
 
   async function fetchPedido() {
     setLoading(true)
+    setErroFetch(null)
     try {
       const res = await adminFetch(`/pedido/${id}`, undefined, admin!.token)
-      if (res.ok) {
-        const data = await res.json()
-        setPedido(data)
-        setNovoStatus(data.status ?? 'PENDENTE')
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        console.warn('[Pedido.fetch] API erro:', { status: res.status, body: data })
+        if (res.status === 404) setErroFetch('Pedido não encontrado')
+        else if (res.status === 401 || res.status === 403)
+          setErroFetch('Você não tem permissão para visualizar este pedido')
+        else setErroFetch(data?.erro || `Erro ${res.status} ao carregar pedido`)
+        return
       }
-    } catch { alert('Erro ao carregar pedido') }
-    setLoading(false)
+      // Normaliza: a API retorna `items` (inglês) por causa do schema Prisma.
+      // O JSX usa `itens` — então mantemos ambos para retro-compatibilidade.
+      const itens = data?.items ?? data?.itens ?? []
+      setPedido({ ...data, itens, items: itens })
+      setNovoStatus(data?.status ?? 'PENDENTE')
+    } catch (e: any) {
+      console.error('[Pedido.fetch] Exceção:', e)
+      setErroFetch(`Erro de conexão: ${e?.message ?? e}`)
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function atualizarStatus() {
@@ -71,6 +110,32 @@ export default function PedidoDetalhe() {
       }
     } catch { alert('Erro ao atualizar status') }
     setAtualizando(false)
+  }
+
+  async function abrirWhatsapp() {
+    const telefone = normalizaTelefoneParaWhatsapp(pedido?.usuario?.telefone)
+    if (!telefone) {
+      Alert.alert('Telefone indisponível', 'Este cliente não tem telefone cadastrado.')
+      return
+    }
+    const nomeCliente = pedido?.usuario?.nome ?? 'cliente'
+    const saudacao = `Olá ${nomeCliente}, aqui é do Feirô. Estou entrando em contato sobre o seu pedido #${pedido.id}.`
+    const mensagem = encodeURIComponent(saudacao)
+    const url = `https://wa.me/${telefone}?text=${mensagem}`
+    try {
+      const podeAbrir = await Linking.canOpenURL(url)
+      if (!podeAbrir) {
+        Alert.alert(
+          'WhatsApp indisponível',
+          'Não foi possível abrir o WhatsApp neste dispositivo.'
+        )
+        return
+      }
+      await Linking.openURL(url)
+    } catch (e) {
+      console.warn('[Pedido] Falha ao abrir WhatsApp:', e)
+      Alert.alert('Erro', 'Não foi possível abrir o WhatsApp.')
+    }
   }
 
   async function deletarPedido() {
@@ -93,18 +158,30 @@ export default function PedidoDetalhe() {
   }
 
   if (!pedido) {
-    return <View style={styles.loadingContainer}><Text style={styles.erro}>Pedido não encontrado</Text></View>
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.erro}>{erroFetch || 'Pedido não encontrado'}</Text>
+      </View>
+    )
   }
 
-  const total = pedido.itens?.reduce((acc: number, item: any) => {
-    return acc + (Number(item.preco || item.preco_unitario || 0) * Number(item.quantidade || 1))
-  }, 0) ?? Number(pedido.total ?? 0)
+  const total =
+    pedido.itens?.reduce((acc: number, item: any) => {
+      return (
+        acc +
+        Number(item.preco || item.preco_unitario || 0) *
+          Number(item.quantidade || 1)
+      )
+    }, 0) ??
+    Number(pedido.valor_total ?? pedido.total ?? 0)
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.card}>
         <Text style={styles.pedidoTitulo}>Pedido #{pedido.id}</Text>
-        <Text style={styles.pedidoData}>{formatarData(pedido.created_at ?? pedido.data)}</Text>
+        <Text style={styles.pedidoData}>
+          {formatarData(pedido.createdAt ?? pedido.created_at ?? pedido.data)}
+        </Text>
         <StatusBadge status={pedido.status ?? 'PENDENTE'} />
       </View>
 
@@ -113,30 +190,73 @@ export default function PedidoDetalhe() {
           <Text style={styles.secaoTitulo}>Cliente</Text>
           <Text style={styles.campo}>Nome: {pedido.usuario.nome}</Text>
           <Text style={styles.campo}>E-mail: {pedido.usuario.email}</Text>
-          {pedido.usuario.endereco ? <Text style={styles.campo}>Endereço: {pedido.usuario.endereco}</Text> : null}
+          {pedido.usuario.telefone ? (
+            <Text style={styles.campo}>Telefone: {pedido.usuario.telefone}</Text>
+          ) : null}
+          {pedido.usuario.endereco ? (
+            <Text style={styles.campo}>Endereço: {pedido.usuario.endereco}</Text>
+          ) : null}
+
+          {/* Botão WhatsApp: só aparece se o cliente tem telefone válido */}
+          {normalizaTelefoneParaWhatsapp(pedido.usuario.telefone) ? (
+            <TouchableOpacity
+              style={styles.whatsappBtn}
+              onPress={abrirWhatsapp}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
+              <Text style={styles.whatsappBtnText}>Falar pelo WhatsApp</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       )}
 
       {pedido.itens && pedido.itens.length > 0 && (
         <View style={styles.card}>
           <Text style={styles.secaoTitulo}>Itens do Pedido</Text>
-          {pedido.itens.map((item: any, i: number) => (
-            <View key={i} style={styles.itemRow}>
-              <Text style={styles.itemEmoji}>{item.mercadoria?.emoji ?? item.emoji ?? '🛒'}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.itemNome}>{item.mercadoria?.nome ?? item.nome ?? '—'}</Text>
-                <Text style={styles.itemPrecoUnit}>
-                  R$ {Number(item.preco || item.preco_unitario || 0).toFixed(2)}/{item.unidade ?? 'un'}
-                </Text>
+          {pedido.itens.map((item: any, i: number) => {
+            const foto = item.mercadoria?.foto || item.foto || null
+            const emoji = item.mercadoria?.emoji ?? item.emoji ?? null
+            return (
+              <View key={i} style={styles.itemRow}>
+                {/* Miniatura: foto se houver, senão emoji do produto, senão ícone genérico */}
+                {foto ? (
+                  <Image
+                    source={{ uri: foto }}
+                    style={styles.itemThumb}
+                    resizeMode="cover"
+                  />
+                ) : emoji ? (
+                  <View style={styles.itemThumbFallback}>
+                    <Text style={styles.itemEmoji}>{emoji}</Text>
+                  </View>
+                ) : (
+                  <View style={styles.itemThumbFallback}>
+                    <Ionicons name="leaf-outline" size={22} color="#999" />
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.itemNome}>
+                    {item.mercadoria?.nome ?? item.nome ?? '—'}
+                  </Text>
+                  <Text style={styles.itemPrecoUnit}>
+                    R$ {Number(item.preco || item.preco_unitario || 0).toFixed(2)}/
+                    {item.unidade ?? 'un'}
+                  </Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={styles.itemQtd}>{item.quantidade ?? 1}x</Text>
+                  <Text style={styles.itemTotal}>
+                    R${' '}
+                    {(
+                      Number(item.preco || item.preco_unitario || 0) *
+                      Number(item.quantidade || 1)
+                    ).toFixed(2)}
+                  </Text>
+                </View>
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={styles.itemQtd}>{item.quantidade ?? 1}x</Text>
-                <Text style={styles.itemTotal}>
-                  R$ {(Number(item.preco || item.preco_unitario || 0) * Number(item.quantidade || 1)).toFixed(2)}
-                </Text>
-              </View>
-            </View>
-          ))}
+            )
+          })}
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total</Text>
             <Text style={styles.totalValor}>R$ {total.toFixed(2)}</Text>
@@ -212,12 +332,45 @@ const styles = StyleSheet.create({
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#EEEEEE',
   },
+  itemThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: '#F0F0F0',
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+  },
+  itemThumbFallback: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: '#FAFAFA',
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   itemEmoji: { fontSize: 24 },
+  whatsappBtn: {
+    marginTop: 12,
+    backgroundColor: '#25D366',
+    borderRadius: 8,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  whatsappBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontFamily: 'Poppins-SemiBold',
+  },
   itemNome: { fontSize: 14, fontFamily: 'Poppins-SemiBold', color: '#333333' },
   itemPrecoUnit: { fontSize: 12, fontFamily: 'Poppins-Regular', color: '#666666' },
   itemQtd: { fontSize: 13, fontFamily: 'Poppins-Regular', color: '#666666' },

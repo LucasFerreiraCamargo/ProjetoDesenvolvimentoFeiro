@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
   Linking,
@@ -17,6 +18,39 @@ import { useApp } from "../../contexts/AppContext";
 import { useCesta } from "../../contexts/CestaContext";
 
 const categorias = ["Todos", "Frutas", "Verduras", "Legumes"];
+
+// Base URL da API
+const API_BASE =
+  (process.env.EXPO_PUBLIC_API_URL as string) || "http://localhost:3001";
+
+// Filtro de disponibilidade (mesmo padrão da home/busca)
+function estaDisponivelParaVenda(m: any): boolean {
+  const qtd = Number(m?.quantidade ?? 0);
+  const min = Number(m?.estoque_minimo ?? 0);
+  if (Number.isNaN(qtd) || qtd <= 0) return false;
+  if (!Number.isNaN(min) && qtd < min) return false;
+  return true;
+}
+
+// Converte uma Mercadoria da API para o formato esperado pelo JSX desta tela.
+function mapMercadoriaParaProduto(m: any) {
+  const preco = Number(m.preco ?? 0);
+  const pp = m.preco_promocional != null ? Number(m.preco_promocional) : null;
+  const temPromo = pp != null && pp > 0 && pp < preco;
+  return {
+    id: String(m.id),
+    nome: m.nome,
+    preco: temPromo ? pp! : preco,
+    precoOriginal: temPromo ? preco : null,
+    unidade: String(m.unidade ?? "UN").toLowerCase(),
+    estoque: Number(m.quantidade ?? 0),
+    imagem: m.foto || "",
+    emoji: m.emoji ?? null,
+    categoria: String(m.categoria ?? "").toLowerCase(),
+    quantidade: 0,
+    destaque: !!m.destaque,
+  };
+}
 
 // Fotos do Unsplash para produtos
 const produtoImages: { [key: string]: string } = {
@@ -57,6 +91,87 @@ export default function ProdutosFeiranteScreen() {
     getTotalItens,
   } = useCesta();
 
+  // Estado real (vindo da API)
+  const [feirante, setFeirante] = useState<any | null>(null);
+  const [feira, setFeira] = useState<any | null>(null);
+  const [produtosFeirante, setProdutosFeirante] = useState<any[]>([]);
+  const [loadingFeirante, setLoadingFeirante] = useState(true);
+  const [feiranteNaoEncontrado, setFeiranteNaoEncontrado] = useState(false);
+
+  // Carrega feirante + mercadorias da API ao montar/mudar de feirante
+  useEffect(() => {
+    let cancelado = false;
+
+    async function carregar() {
+      if (!feiranteId) {
+        setLoadingFeirante(false);
+        setFeiranteNaoEncontrado(true);
+        return;
+      }
+      setLoadingFeirante(true);
+      setFeiranteNaoEncontrado(false);
+
+      try {
+        // 1) Busca o feirante (já vem com `feira` incluída pela API)
+        const resF = await fetch(
+          `${API_BASE.replace(/\/$/, "")}/feirantes/${feiranteId}`
+        );
+        if (resF.status === 404) {
+          console.warn("[Produtos] feirante 404:", feiranteId);
+          if (!cancelado) setFeiranteNaoEncontrado(true);
+          return;
+        }
+        if (!resF.ok) {
+          console.warn("[Produtos] /feirantes/:id erro:", resF.status);
+          if (!cancelado) setFeiranteNaoEncontrado(true);
+          return;
+        }
+        const dataF = await resF.json();
+        if (!dataF || dataF.id == null) {
+          if (!cancelado) setFeiranteNaoEncontrado(true);
+          return;
+        }
+
+        // 2) Busca as mercadorias desse feirante
+        const resM = await fetch(
+          `${API_BASE.replace(/\/$/, "")}/mercadorias/feirantes/${dataF.id}`
+        );
+        const dataM = resM.ok ? await resM.json() : [];
+        const mercadorias = Array.isArray(dataM) ? dataM : [];
+        // Cliente só vê mercadorias com estoque adequado
+        const disponiveis = mercadorias
+          .filter(estaDisponivelParaVenda)
+          .map(mapMercadoriaParaProduto);
+
+        if (cancelado) return;
+        setFeirante({
+          ...dataF,
+          // shape compatível com o que o JSX espera
+          produtos: disponiveis,
+          // mantém os campos exibidos pelo header
+          avatar: dataF.avatar || dataF.foto || null,
+          status: dataF.status ?? "Aberto",
+        });
+        // Se o feirante não tem feira associada, usa stub para evitar checks NULL
+        // espalhados pela tela. ID 0 indica "sem feira" e nome vazio.
+        setFeira(
+          dataF.feira ?? { id: 0, nome: "Sem feira associada" }
+        );
+        setProdutosFeirante(disponiveis);
+      } catch (e) {
+        console.error("[Produtos] Falha ao buscar feirante/mercadorias:", e);
+        if (!cancelado) setFeiranteNaoEncontrado(true);
+      } finally {
+        if (!cancelado) setLoadingFeirante(false);
+      }
+    }
+
+    carregar();
+    return () => {
+      cancelado = true;
+    };
+  }, [feiranteId]);
+
   // Estado local
   const [busca, setBusca] = useState("");
   const [categoriaAtiva, setCategoriaAtiva] = useState("Todos");
@@ -80,29 +195,15 @@ export default function ProdutosFeiranteScreen() {
   // Opções de maturação
   const maturationOptions = ["Maduro", "Ao Ponto", "Verde"];
 
-  // Lista de produtos em promoção (IDs)
-  const promocoesIds = getAllProdutos()
-    .slice(0, 5)
-    .map((p) => p.id);
-
-  // Encontrar feirante e feira
-  let feirante: any = null;
-  let feira: any = null;
-
-  for (const f of state.feiras) {
-    const foundFeirante = f.feirantes.find((fr: any) => fr.id === feiranteId);
-    if (foundFeirante) {
-      feirante = foundFeirante;
-      feira = f;
-      break;
-    }
-  }
+  // Lista de produtos em promoção (IDs) — agora derivada das mercadorias reais do feirante
+  const promocoesIds = produtosFeirante
+    .filter((p: any) => p.precoOriginal != null)
+    .map((p: any) => p.id);
 
   // Filtrar produtos
   const produtosFiltrados = useMemo(() => {
-    if (!feirante) return [];
-
-    return feirante.produtos.filter((produto: any) => {
+    if (!produtosFeirante.length) return [];
+    return produtosFeirante.filter((produto: any) => {
       const matchBusca = produto.nome
         .toLowerCase()
         .includes(busca.toLowerCase());
@@ -112,11 +213,12 @@ export default function ProdutosFeiranteScreen() {
 
       return matchBusca && matchCategoria;
     });
-  }, [feirante, busca, categoriaAtiva]);
+  }, [produtosFeirante, busca, categoriaAtiva]);
 
   // Produtos no carrinho do feirante atual
+  // (normaliza para string porque feiranteId da URL é string e feirante.id da API é number)
   const produtosNoCarrinho = cestaState.itens.filter(
-    (item) => item.feiranteId === feiranteId
+    (item) => String(item.feiranteId) === String(feiranteId)
   );
 
   // Funções de utilidade simplificadas
@@ -366,7 +468,26 @@ export default function ProdutosFeiranteScreen() {
     });
   };
 
-  if (!feirante || !feira) {
+  if (loadingFeirante) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="#2D5D31" />
+          </TouchableOpacity>
+          <Text style={styles.title}>Carregando...</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <ActivityIndicator
+          size="large"
+          color="#255336"
+          style={{ marginTop: 40 }}
+        />
+      </View>
+    );
+  }
+
+  if (!feirante || feiranteNaoEncontrado) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>

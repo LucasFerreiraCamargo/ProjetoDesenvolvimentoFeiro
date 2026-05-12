@@ -17,7 +17,19 @@ import ConfirmModal from '../../../components/admin/ConfirmModal'
 import { useAdmin, useAdminGuard, useAdminTitulo } from '../../../contexts/AdminContext'
 import { adminFetch } from '../../../utils/adminApi'
 
-const CATEGORIAS = ['Todos', 'FRUTAS', 'LEGUMES', 'VERDURAS', 'TEMPEROS']
+const CATEGORIAS = [
+  'Todos',
+  'FRUTAS',
+  'LEGUMES',
+  'VERDURAS',
+  'TEMPEROS',
+  'OVOS',
+  'ORGANICOS',
+  'CARNES',
+  'PEIXES',
+  'LATICINIOS',
+  'GRAOS',
+]
 
 export default function Mercadorias() {
   // Feirante (2) e Superadmin (3) podem acessar
@@ -195,9 +207,34 @@ export default function Mercadorias() {
                 )}
                 <View style={{ flex: 1 }}>
                   <Text style={styles.nome}>{item.nome}</Text>
-                  <Text style={styles.sub}>
-                    R$ {Number(item.preco).toFixed(2)}/{item.unidade}
-                  </Text>
+                  {(() => {
+                    const p = Number(item.preco)
+                    const pp =
+                      item.preco_promocional != null
+                        ? Number(item.preco_promocional)
+                        : null
+                    if (pp != null && pp > 0 && pp < p) {
+                      const pct = Math.round(((p - pp) / p) * 100)
+                      return (
+                        <View style={styles.precoRow}>
+                          <Text style={styles.subPromo}>
+                            R$ {pp.toFixed(2)}/{item.unidade}
+                          </Text>
+                          <Text style={styles.subOriginal}>
+                            R$ {p.toFixed(2)}
+                          </Text>
+                          <View style={styles.precoPctBadge}>
+                            <Text style={styles.precoPctText}>-{pct}%</Text>
+                          </View>
+                        </View>
+                      )
+                    }
+                    return (
+                      <Text style={styles.sub}>
+                        R$ {p.toFixed(2)}/{item.unidade}
+                      </Text>
+                    )
+                  })()}
                   {/* Só Superadmin (3) vê o nome do feirante na listagem (Feirante já sabe que é seu) */}
                   {admin!.nivel >= 3 && item.feirante && (
                     <Text style={styles.feirante}>Feirante: {item.feirante.nome}</Text>
@@ -378,6 +415,35 @@ const styles = StyleSheet.create({
   emoji: { fontSize: 32 },
   nome: { fontSize: 16, fontFamily: 'Poppins-SemiBold', color: '#333333' },
   sub: { fontSize: 14, fontFamily: 'Poppins-Regular', color: '#666666', marginBottom: 4 },
+  precoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+    flexWrap: 'wrap',
+  },
+  subPromo: {
+    fontSize: 14,
+    fontFamily: 'Poppins-SemiBold',
+    color: '#DC2626',
+  },
+  subOriginal: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Regular',
+    color: '#999999',
+    textDecorationLine: 'line-through',
+  },
+  precoPctBadge: {
+    backgroundColor: '#DC2626',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  precoPctText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontFamily: 'Poppins-SemiBold',
+  },
   feirante: { fontSize: 13, fontFamily: 'Poppins-Regular', color: '#999999', marginBottom: 4 },
   badges: { flexDirection: 'row', gap: 6 },
   badge: {

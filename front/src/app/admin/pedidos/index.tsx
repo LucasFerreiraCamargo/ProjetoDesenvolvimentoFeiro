@@ -13,7 +13,16 @@ import StatusBadge, { STATUS_MAP } from '../../../components/admin/StatusBadge'
 import { useAdmin, useAdminGuard, useAdminTitulo } from '../../../contexts/AdminContext'
 import { adminFetch } from '../../../utils/adminApi'
 
-const FILTROS = ['Todos', 'PENDENTE', 'EM_PREPARACAO', 'EM_ANDAMENTO', 'EM_ROTA', 'ENTREGUE', 'FINALIZADO', 'CANCELADO']
+const FILTROS = [
+  'Todos',
+  'PENDENTE',
+  'EM_PREPARACAO',
+  'EM_ANDAMENTO',
+  'EM_ROTA',
+  'ENTREGUE',
+  'RETORNANDO',
+  'CANCELADO',
+]
 
 export default function Pedidos() {
   // Feirante (2) e Superadmin (3) podem acessar
@@ -33,12 +42,38 @@ export default function Pedidos() {
     try {
       const res = await adminFetch('/pedido', undefined, admin!.token)
       const data = await res.json()
+      if (!res.ok) {
+        console.warn('[Pedidos] API erro:', { status: res.status, body: data })
+        alert('Erro ao carregar pedidos')
+        setPedidos([])
+        return
+      }
       setPedidos(Array.isArray(data) ? data : [])
-    } catch { alert('Erro ao carregar pedidos') }
-    setLoading(false)
+    } catch (e) {
+      console.error('[Pedidos] Exceção:', e)
+      alert('Erro de conexão ao carregar pedidos')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const filtrados = pedidos.filter((p) => filtro === 'Todos' || p.status === filtro)
+  // Feirante (nível 2) só vê pedidos que incluem alguma mercadoria da banca dele.
+  // Superadmin (nível 3) vê todos.
+  const visiveis = (() => {
+    if (!admin) return []
+    if (admin.nivel >= 3) return pedidos
+    if (admin.nivel === 2 && admin.feiranteId != null) {
+      return pedidos.filter((p: any) => {
+        const items = Array.isArray(p.items) ? p.items : []
+        return items.some(
+          (it: any) => Number(it?.mercadoria?.feirante_id) === Number(admin.feiranteId)
+        )
+      })
+    }
+    return []
+  })()
+
+  const filtrados = visiveis.filter((p) => filtro === 'Todos' || p.status === filtro)
 
   const corBorda = (status: string) => STATUS_MAP[status]?.text ?? '#E0E0E0'
 
@@ -82,7 +117,9 @@ export default function Pedidos() {
             >
               <View style={styles.cardTopo}>
                 <Text style={styles.pedidoId}>Pedido #{item.id}</Text>
-                <Text style={styles.pedidoValor}>R$ {Number(item.total || 0).toFixed(2)}</Text>
+                <Text style={styles.pedidoValor}>
+                  R$ {Number(item.valor_total || item.total || 0).toFixed(2)}
+                </Text>
               </View>
               <View style={styles.cardMeio}>
                 <Text style={styles.pedidoCliente}>
@@ -91,7 +128,8 @@ export default function Pedidos() {
                 <StatusBadge status={item.status ?? 'PENDENTE'} />
               </View>
               <Text style={styles.pedidoMeta}>
-                {item.itens?.length ?? 0} itens · {formatarData(item.created_at ?? item.data)}
+                {(item.items ?? item.itens ?? []).length} itens ·{' '}
+                {formatarData(item.createdAt ?? item.created_at ?? item.data)}
               </Text>
             </TouchableOpacity>
           )}

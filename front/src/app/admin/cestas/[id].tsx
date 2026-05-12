@@ -92,22 +92,116 @@ export default function CestaDetalhe() {
   }
 
   async function salvar() {
-    if (!nome || !preco) { alert('Nome e preço são obrigatórios'); return }
+    // Validações que batem com o cestaSchema da API:
+    // nome.min(3), preco.positive(), feirante_id.number(), imagem.url() (se enviada)
+    if (!nome || nome.length < 3) {
+      alert('O nome da cesta deve ter pelo menos 3 caracteres')
+      return
+    }
+    const precoNum = Number(preco)
+    if (Number.isNaN(precoNum) || precoNum <= 0) {
+      alert('Informe um preço válido (maior que zero)')
+      return
+    }
+    if (feiranteId == null || Number.isNaN(Number(feiranteId))) {
+      alert(
+        admin!.nivel >= 3
+          ? 'Selecione um feirante para a cesta'
+          : 'Sua conta não está vinculada a um feirante. Peça ao admin para associar.'
+      )
+      return
+    }
+    // imagem é opcional, mas se enviada precisa ser URL válida
+    if (imagemUrl && !/^https?:\/\//i.test(imagemUrl)) {
+      alert('A imagem precisa ser uma URL começando com http(s)://, ou deixe em branco')
+      return
+    }
+
     setSaving(true)
+
+    // Monta payload omitindo campos opcionais quando vazios (Zod rejeita "" em z.string().url())
+    const payload: any = {
+      nome,
+      preco: precoNum,
+      feirante_id: Number(feiranteId),
+      mercadorias: mercSelecionadas,
+    }
+    if (desconto) payload.desconto = desconto
+    if (emojiVal) payload.emoji = emojiVal
+    if (categoria) payload.categoria = categoria
+    if (imagemUrl) payload.imagem = imagemUrl
+
+    console.log('[Cesta.salvar] enviando:', payload)
+
     try {
-      const body = JSON.stringify({
-        nome, preco: Number(preco), desconto, emoji: emojiVal,
-        categoria, imagem: imagemUrl, feirante_id: feiranteId,
-        mercadorias: mercSelecionadas,
-      })
+      const body = JSON.stringify(payload)
       const res = isNovo
         ? await adminFetch('/cestas', { method: 'POST', body }, admin!.token)
         : await adminFetch(`/cestas/${id}`, { method: 'PUT', body }, admin!.token)
-      const data = await res.json()
-      if (!res.ok) { alert(data.erro || data.error || 'Erro ao salvar'); return }
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        console.warn('[Cesta.salvar] API respondeu erro:', {
+          status: res.status,
+          body: data,
+        })
+        if (res.status === 401 || res.status === 403) {
+          alert('Sua sessão expirou ou você não tem permissão. Faça login novamente.')
+          return
+        }
+        alert(formataErroApi(data) || `Erro ${res.status} ao salvar`)
+        return
+      }
+
+      console.log('[Cesta.salvar] OK:', data)
       router.back()
-    } catch { alert('Erro ao salvar cesta') }
-    setSaving(false)
+    } catch (e: any) {
+      console.error('[Cesta.salvar] Exceção:', e)
+      alert(e?.message ? `Erro ao salvar cesta: ${e.message}` : 'Erro ao salvar cesta')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /**
+   * Formata respostas de erro da API (Zod fieldErrors, ZodError, Prisma ou string).
+   * - POST /cestas devolve { erro: { nome: [...], imagem: [...] } } (fieldErrors)
+   * - Outras rotas devolvem { erro: ZodError } com `issues[]`
+   */
+  function formataErroApi(data: any): string {
+    if (!data) return ''
+    const raw = data.erro ?? data.error ?? data.message ?? data
+    if (!raw) return ''
+    if (typeof raw === 'string') return raw
+
+    // Formato Zod com .flatten().fieldErrors: { campo: ["msg1", "msg2"] }
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      const linhas: string[] = []
+      for (const campo of Object.keys(raw)) {
+        const v = raw[campo]
+        if (Array.isArray(v) && v.length) {
+          linhas.push(`${campo}: ${v.join(', ')}`)
+        } else if (typeof v === 'string') {
+          linhas.push(`${campo}: ${v}`)
+        }
+      }
+      if (linhas.length) return linhas.join('\n')
+    }
+
+    // ZodError completo com issues[]
+    if (Array.isArray(raw?.issues)) {
+      return raw.issues
+        .map((i: any) => `${(i.path ?? []).join('.') || 'campo'}: ${i.message}`)
+        .join('\n')
+    }
+
+    if (typeof raw?.message === 'string') return raw.message
+
+    try {
+      return JSON.stringify(raw, null, 2)
+    } catch {
+      return String(raw)
+    }
   }
 
   if (loading) {

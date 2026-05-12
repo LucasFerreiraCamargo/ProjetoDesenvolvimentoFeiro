@@ -35,7 +35,7 @@ export interface Pedido {
 interface UserContextValue {
   user: User | null;
   loading: boolean;
-  updateUser: (patch: Partial<User>) => Promise<void>;
+  updateUser: (patch: Partial<User>) => Promise<User>;
   setUser: (u: User | null) => void;
   logout: () => void;
 }
@@ -143,27 +143,70 @@ export function UserProvider({ children }: { children: ReactNode }) {
   };
 
   const updateUser = async (patch: Partial<User>) => {
-    const next = { ...(user || {}), ...patch } as User;
+    if (!user || !user.id) {
+      throw new Error("Você precisa estar logado para atualizar o perfil.");
+    }
+    if (!user.token) {
+      throw new Error("Sua sessão expirou. Faça login novamente.");
+    }
+    if (!API_BASE) {
+      throw new Error("API_BASE não configurada (EXPO_PUBLIC_API_URL).");
+    }
 
-    // primeiro, tentar atualizar via API se disponível
-    let updatedFromApi = null as any;
-    if (API_BASE) {
-      const base = API_BASE.replace(/\/$/, "");
-      // endpoints comuns para atualizar
-      const putCandidates = ["/me", "/users/me", "/user"];
-      for (const ep of putCandidates) {
-        const url = base + ep;
-        // tentar PATCH então PUT
-        updatedFromApi = await tryPostOrPut(url, "PATCH", patch);
-        if (updatedFromApi) break;
-        updatedFromApi = await tryPostOrPut(url, "PUT", { ...(user || {}), ...patch });
-        if (updatedFromApi) break;
+    // Constrói payload limpo: só envia campos que o usuário realmente forneceu.
+    // (Campos cosméticos como `avatar` ainda não existem no banco; preservados localmente.)
+    const camposApi = ["nome", "email", "telefone", "endereco", "bairro", "senha"] as const;
+    const payloadApi: Record<string, any> = {};
+    for (const k of camposApi) {
+      const v = (patch as any)[k];
+      if (v !== undefined && v !== null && String(v).trim() !== "") {
+        payloadApi[k] = typeof v === "string" ? v.trim() : v;
       }
     }
 
-    const finalUser = (updatedFromApi ? { ...(user || {}), ...updatedFromApi } : next) as User;
-    setUserState(finalUser);
-    await persist(finalUser);
+    const url = `${API_BASE.replace(/\/$/, "")}/usuarios/${user.id}`;
+    const res = await fetch(url, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${user.token}`,
+      },
+      body: JSON.stringify(payloadApi),
+    });
+
+    const body = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      console.warn("[UserContext.updateUser] API erro:", { status: res.status, body });
+      // Formata Zod fieldErrors em mensagem legível
+      const detalhes = (body as any)?.erro ?? body;
+      let msg = `Erro ${res.status} ao atualizar perfil`;
+      if (typeof detalhes === "string") {
+        msg = detalhes;
+      } else if (detalhes && typeof detalhes === "object" && !Array.isArray(detalhes)) {
+        const linhas: string[] = [];
+        for (const k of Object.keys(detalhes)) {
+          const v = (detalhes as any)[k];
+          if (Array.isArray(v)) linhas.push(`${k}: ${v.join(", ")}`);
+          else if (typeof v === "string") linhas.push(`${k}: ${v}`);
+        }
+        if (linhas.length) msg = linhas.join("\n");
+      }
+      throw new Error(msg);
+    }
+
+    // Mescla o que veio da API com campos só-locais (avatar, pedidos, etc.) e o token.
+    const merged: User = {
+      ...(user || {}),
+      ...(body || {}),
+      // mantém campos locais não devolvidos pela API
+      avatar: (patch as any).avatar ?? user?.avatar,
+      token: user.token,
+    } as User;
+
+    setUserState(merged);
+    await persist(merged);
+    return merged;
   };
 
   const logout = () => {

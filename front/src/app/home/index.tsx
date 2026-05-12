@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Dimensions,
   FlatList,
   Image,
@@ -13,6 +14,24 @@ import {
 } from "react-native";
 
 import { useApp } from "../../contexts/AppContext";
+
+// Base URL da API (mesmo padrão usado nas outras telas)
+const API_BASE =
+  (process.env.EXPO_PUBLIC_API_URL as string) || "http://localhost:3001";
+
+/**
+ * Decide se uma mercadoria está disponível para venda.
+ * Regras:
+ *  - precisa ter alguma unidade em estoque (`quantidade > 0`)
+ *  - precisa estar no mínimo de estoque definido pelo feirante (`quantidade >= estoque_minimo`)
+ */
+function estaDisponivelParaVenda(m: any): boolean {
+  const qtd = Number(m?.quantidade ?? 0);
+  const min = Number(m?.estoque_minimo ?? 0);
+  if (Number.isNaN(qtd) || qtd <= 0) return false;
+  if (!Number.isNaN(min) && qtd < min) return false;
+  return true;
+}
 
 const { width } = Dimensions.get("window");
 
@@ -159,14 +178,31 @@ const CardCesta = ({ item }: { item: any }) => (
     onPress={() => router.push(`/cesta/${item.id}`)}
   >
     <View style={styles.cestaImgContainer}>
-      <Image
-        source={{ uri: item.imagem }}
-        style={styles.cestaImage}
-        resizeMode="cover"
-      />
-      <View style={styles.cestaDesconto}>
-        <Text style={styles.cestaDescontoText}>{item.desconto}</Text>
-      </View>
+      {item.imagem ? (
+        <Image
+          source={{ uri: item.imagem }}
+          style={styles.cestaImage}
+          resizeMode="cover"
+        />
+      ) : (
+        <View
+          style={[
+            styles.cestaImage,
+            {
+              backgroundColor: "#FAFAFA",
+              justifyContent: "center",
+              alignItems: "center",
+            },
+          ]}
+        >
+          <Text style={{ fontSize: 32 }}>{item.emoji ?? "🧺"}</Text>
+        </View>
+      )}
+      {item.desconto ? (
+        <View style={styles.cestaDesconto}>
+          <Text style={styles.cestaDescontoText}>{item.desconto}</Text>
+        </View>
+      ) : null}
     </View>
 
     <View style={styles.cestaContent}>
@@ -178,10 +214,12 @@ const CardCesta = ({ item }: { item: any }) => (
       </Text>
 
       <View style={styles.cestaPrecoContainer}>
-        <Text style={styles.cestaPreco}>R$ {item.preco.toFixed(2)}</Text>
+        <Text style={styles.cestaPreco}>
+          R$ {Number(item.preco ?? 0).toFixed(2)}
+        </Text>
         {item.precoAntigo && (
           <Text style={styles.cestaPrecoAntigo}>
-            R$ {item.precoAntigo.toFixed(2)}
+            R$ {Number(item.precoAntigo).toFixed(2)}
           </Text>
         )}
       </View>
@@ -193,12 +231,14 @@ const CardProduto = ({ item }: { item: any }) => {
   const { state } = useApp();
 
   const navegarParaProduto = () => {
-    console.log("Tentando navegar para produto:", item.id);
+    // Caminho preferido: produto vindo da API já traz feiranteId
+    if (item.feiranteId != null) {
+      router.push(`/produtos/${item.feiranteId}`);
+      return;
+    }
 
-    // Encontrar o feirante que tem esse produto
+    // Fallback: procura no estado mock (cestas/itens que ainda vêm dali)
     let feiranteEncontrado = null;
-    let feiraEncontrada = null;
-
     for (const feira of state.feiras) {
       for (const feirante of feira.feirantes) {
         const produtoExiste = feirante.produtos.some(
@@ -206,60 +246,55 @@ const CardProduto = ({ item }: { item: any }) => {
         );
         if (produtoExiste) {
           feiranteEncontrado = feirante;
-          feiraEncontrada = feira;
           break;
         }
       }
       if (feiranteEncontrado) break;
     }
-
     if (feiranteEncontrado) {
-      console.log(
-        "Feirante encontrado:",
-        feiranteEncontrado.id,
-        "na feira:",
-        feiraEncontrada?.id
-      );
       router.push(`/produtos/${feiranteEncontrado.id}`);
     } else {
       console.warn("Feirante não encontrado para produto:", item.id);
-      // Fallback: usar o primeiro feirante disponível que tenha produtos
-      const feiraComFeirantes = state.feiras.find(
-        (feira) =>
-          feira.feirantes.length > 0 &&
-          feira.feirantes.some((f) => f.produtos.length > 0)
-      );
-
-      if (feiraComFeirantes) {
-        const feiranteComProdutos = feiraComFeirantes.feirantes.find(
-          (f) => f.produtos.length > 0
-        );
-        if (feiranteComProdutos) {
-          console.log(
-            "Usando fallback - navegando para:",
-            feiranteComProdutos.id
-          );
-          router.push(`/produtos/${feiranteComProdutos.id}`);
-        } else {
-          console.error("Nenhum feirante com produtos encontrado");
-        }
-      } else {
-        console.error("Nenhuma feira com feirantes disponível");
-      }
     }
   };
+
+  // Desconto real (só aparece se houver precoOriginal e for maior que o preço atual)
+  const temPromocao =
+    item.precoOriginal != null && Number(item.precoOriginal) > Number(item.preco);
+  const pctDesconto = temPromocao
+    ? Math.round(
+        ((Number(item.precoOriginal) - Number(item.preco)) /
+          Number(item.precoOriginal)) *
+          100
+      )
+    : null;
 
   return (
     <TouchableOpacity style={styles.cardProduto} onPress={navegarParaProduto}>
       <View style={styles.cardImgContainer}>
-        <Image
-          source={{ uri: item.imagem }}
-          style={styles.cardImage}
-          resizeMode="cover"
-        />
-        {item.desconto && (
+        {item.imagem ? (
+          <Image
+            source={{ uri: item.imagem }}
+            style={styles.cardImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View
+            style={[
+              styles.cardImage,
+              {
+                backgroundColor: "#FAFAFA",
+                justifyContent: "center",
+                alignItems: "center",
+              },
+            ]}
+          >
+            <Text style={{ fontSize: 32 }}>{item.emoji ?? "🛒"}</Text>
+          </View>
+        )}
+        {temPromocao && (
           <View style={styles.cardDesconto}>
-            <Text style={styles.cardDescontoText}>-15%</Text>
+            <Text style={styles.cardDescontoText}>-{pctDesconto}%</Text>
           </View>
         )}
       </View>
@@ -272,10 +307,12 @@ const CardProduto = ({ item }: { item: any }) => {
         <Text style={styles.cardUnidade}>Por {item.unidade}</Text>
 
         <View style={styles.cardPrecoContainer}>
-          <Text style={styles.cardPreco}>R$ {item.preco.toFixed(2)}</Text>
-          <Text style={styles.cardPrecoAntigo}>
-            R$ {(item.preco * 1.18).toFixed(2)}
-          </Text>
+          <Text style={styles.cardPreco}>R$ {Number(item.preco).toFixed(2)}</Text>
+          {temPromocao && (
+            <Text style={styles.cardPrecoAntigo}>
+              R$ {Number(item.precoOriginal).toFixed(2)}
+            </Text>
+          )}
         </View>
       </View>
     </TouchableOpacity>
@@ -312,9 +349,124 @@ const FeiraItem = ({ item }: { item: any }) => (
   </TouchableOpacity>
 );
 
+// Mapeia uma Mercadoria da API para o formato que CardProduto espera.
+function mapMercadoriaParaCard(m: any) {
+  const preco = Number(m.preco ?? 0);
+  const precoPromocional =
+    m.preco_promocional != null ? Number(m.preco_promocional) : null;
+  const precoExibido =
+    precoPromocional != null && precoPromocional > 0 && precoPromocional < preco
+      ? precoPromocional
+      : preco;
+  const precoOriginal =
+    precoPromocional != null && precoPromocional > 0 && precoPromocional < preco
+      ? preco
+      : null;
+
+  return {
+    id: String(m.id),
+    nome: m.nome,
+    preco: precoExibido,
+    precoOriginal,
+    unidade: String(m.unidade ?? "UN").toLowerCase(),
+    estoque: Number(m.quantidade ?? 0),
+    imagem: m.foto || "",
+    emoji: m.emoji ?? null,
+    categoria: m.categoria,
+    feiranteId: m.feirante_id ?? m.feirante?.id ?? null,
+    feiranteNome: m.feirante?.nome ?? null,
+  };
+}
+
+// Mapeia uma Cesta da API para o formato que CardCesta espera
+function mapCestaParaCard(c: any) {
+  if (!c || c.id == null) return null;
+  return {
+    id: String(c.id),
+    nome: c.nome ?? "Cesta",
+    preco: Number(c.preco ?? 0),
+    desconto: c.desconto ?? undefined,
+    imagem: c.imagem || "",
+    emoji: c.emoji || undefined,
+    feirante: c.feirante?.nome ?? "Feirante",
+    banca: c.feirante?.banca ?? "",
+    feira: c.feirante?.feira?.nome ?? "",
+    itens: Array.isArray(c.mercadorias) ? c.mercadorias : [],
+  };
+}
+
 // --- Tela Principal ---
 export default function HomeScreen() {
-  const { state, getAllCestas, getAllProdutos } = useApp();
+  const { state, getAllProdutos } = useApp();
+
+  // Produtos reais da API (substitui o mock para "Promoções do Dia")
+  const [produtosApi, setProdutosApi] = useState<any[]>([]);
+  const [loadingProdutos, setLoadingProdutos] = useState(true);
+
+  // Cestas reais da API (substitui o mock para "Cestas em Oferta")
+  const [cestasApi, setCestasApi] = useState<any[]>([]);
+  const [loadingCestas, setLoadingCestas] = useState(true);
+
+  useEffect(() => {
+    let cancelado = false;
+    async function carregarMercadorias() {
+      try {
+        const res = await fetch(
+          `${API_BASE.replace(/\/$/, "")}/mercadorias`
+        );
+        if (!res.ok) {
+          console.warn(
+            "[Home] /mercadorias respondeu erro:",
+            res.status
+          );
+          if (!cancelado) setProdutosApi([]);
+          return;
+        }
+        const data = await res.json();
+        const lista = Array.isArray(data) ? data : [];
+        // Filtra: precisa ter estoque > 0 E >= estoque_minimo definido pelo feirante
+        const disponiveis = lista
+          .filter(estaDisponivelParaVenda)
+          .map(mapMercadoriaParaCard);
+        if (!cancelado) setProdutosApi(disponiveis);
+      } catch (e) {
+        console.error("[Home] Falha ao buscar mercadorias:", e);
+        if (!cancelado) setProdutosApi([]);
+      } finally {
+        if (!cancelado) setLoadingProdutos(false);
+      }
+    }
+
+    async function carregarCestas() {
+      try {
+        const res = await fetch(`${API_BASE.replace(/\/$/, "")}/cestas`);
+        if (!res.ok) {
+          console.warn("[Home] /cestas respondeu erro:", res.status);
+          if (!cancelado) setCestasApi([]);
+          return;
+        }
+        const data = await res.json();
+        const lista = Array.isArray(data) ? data : [];
+        if (!cancelado) {
+          const mapeadas = lista
+            .map(mapCestaParaCard)
+            .filter((x): x is NonNullable<typeof x> => x != null);
+          setCestasApi(mapeadas);
+        }
+      } catch (e) {
+        console.error("[Home] Falha ao buscar cestas:", e);
+        if (!cancelado) setCestasApi([]);
+      } finally {
+        if (!cancelado) setLoadingCestas(false);
+      }
+    }
+
+    carregarMercadorias();
+    carregarCestas();
+    return () => {
+      cancelado = true;
+    };
+  }, []);
 
   // Verificar se o context está carregado
   if (!state || !state.feiras) {
@@ -327,9 +479,14 @@ export default function HomeScreen() {
     );
   }
 
-  // Usar dados do context
-  const promocoes = getAllProdutos().slice(0, 5); // Primeiros 5 produtos como promoção
-  const cestas = getAllCestas().slice(0, 3); // Primeiras 3 cestas
+  // Promoções do Dia: produtos REAIS da API, priorizando os que estão em promoção
+  const promocoes = (() => {
+    const emPromo = produtosApi.filter((p) => p.precoOriginal != null);
+    const restantes = produtosApi.filter((p) => p.precoOriginal == null);
+    return [...emPromo, ...restantes].slice(0, 10);
+  })();
+
+  const cestas = cestasApi.slice(0, 3); // Cestas reais da API
   const feirasAbertas = state.feiras.filter(
     (feira) => feira.status === "Aberto"
   );
@@ -375,14 +532,26 @@ export default function HomeScreen() {
               <Text style={styles.verTodos}>Ver todas</Text>
             </TouchableOpacity>
           </View>
-          <FlatList
-            data={promocoes}
-            renderItem={({ item }) => <CardProduto item={item} />}
-            keyExtractor={(item) => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalList}
-          />
+          {loadingProdutos ? (
+            <ActivityIndicator
+              size="small"
+              color="#255336"
+              style={{ marginVertical: 20 }}
+            />
+          ) : promocoes.length === 0 ? (
+            <Text style={styles.vazioTexto}>
+              Nenhum produto disponível no momento.
+            </Text>
+          ) : (
+            <FlatList
+              data={promocoes}
+              renderItem={({ item }) => <CardProduto item={item} />}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalList}
+            />
+          )}
         </View>
 
         {/* Cestas em Oferta */}
@@ -395,14 +564,26 @@ export default function HomeScreen() {
               <Text style={styles.verTodos}>Ver todas</Text>
             </TouchableOpacity>
           </View>
-          <FlatList
-            data={cestas}
-            renderItem={({ item }) => <CardCesta item={item} />}
-            keyExtractor={(item) => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalList}
-          />
+          {loadingCestas ? (
+            <ActivityIndicator
+              size="small"
+              color="#255336"
+              style={{ marginVertical: 20 }}
+            />
+          ) : cestas.length === 0 ? (
+            <Text style={styles.vazioTexto}>
+              Nenhuma cesta disponível no momento.
+            </Text>
+          ) : (
+            <FlatList
+              data={cestas}
+              renderItem={({ item }) => <CardCesta item={item} />}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalList}
+            />
+          )}
         </View>
 
         {/* Feiras Abertas Hoje */}
@@ -564,6 +745,13 @@ const styles = StyleSheet.create({
     color: "#255336",
     fontWeight: "600",
     fontSize: 14,
+  },
+  vazioTexto: {
+    fontSize: 13,
+    color: "#999999",
+    fontStyle: "italic",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
 
   horizontalList: {

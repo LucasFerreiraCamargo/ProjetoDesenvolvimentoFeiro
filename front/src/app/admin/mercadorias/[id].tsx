@@ -17,7 +17,18 @@ import FormInput from '../../../components/admin/FormInput'
 import { useAdmin, useAdminGuard, useAdminTitulo } from '../../../contexts/AdminContext'
 import { adminFetch } from '../../../utils/adminApi'
 
-const CATEGORIAS = ['FRUTAS', 'LEGUMES', 'VERDURAS', 'TEMPEROS']
+const CATEGORIAS = [
+  'FRUTAS',
+  'LEGUMES',
+  'VERDURAS',
+  'TEMPEROS',
+  'OVOS',
+  'ORGANICOS',
+  'CARNES',
+  'PEIXES',
+  'LATICINIOS',
+  'GRAOS',
+]
 const UNIDADES = ['UN', 'KG', 'CX']
 
 // ─── Indicador de estoque ─────────────────────────────────────────────────────
@@ -107,6 +118,8 @@ export default function MercadoriaDetalhe() {
   const [nome, setNome] = useState('')
   const [descricao, setDescricao] = useState('')
   const [preco, setPreco] = useState('')
+  const [emPromocao, setEmPromocao] = useState(false)
+  const [precoPromocional, setPrecoPromocional] = useState('')
   const [quantidade, setQuantidade] = useState('')
   const [estoqueMinimo, setEstoqueMinimo] = useState('5')
   const [estoqueMaximo, setEstoqueMaximo] = useState('100')
@@ -150,6 +163,14 @@ export default function MercadoriaDetalhe() {
       setNome(data.nome ?? '')
       setDescricao(data.descricao ?? '')
       setPreco(String(data.preco ?? ''))
+      // Se vier preco_promocional do banco, ativa o toggle de promoção
+      if (data.preco_promocional != null) {
+        setEmPromocao(true)
+        setPrecoPromocional(String(data.preco_promocional))
+      } else {
+        setEmPromocao(false)
+        setPrecoPromocional('')
+      }
       setQuantidade(String(data.quantidade ?? ''))
       setEstoqueMinimo(String(data.estoque_minimo ?? 5))
       setEstoqueMaximo(String(data.estoque_maximo ?? 100))
@@ -176,17 +197,34 @@ export default function MercadoriaDetalhe() {
 
     // Validações que o Zod da API exige (preco, quantidade são z.number(), feirante_id é z.number())
     if (Number.isNaN(qtd)) { alert('Quantidade inválida'); return }
-    if (Number.isNaN(Number(preco))) { alert('Preço inválido'); return }
+    const precoNum = Number(preco)
+    if (Number.isNaN(precoNum) || precoNum <= 0) { alert('Preço inválido'); return }
     if (feiranteId == null || Number.isNaN(Number(feiranteId))) {
       alert('Selecione um feirante para a mercadoria')
       return
+    }
+
+    // Promoção: só envia preco_promocional se o toggle estiver ligado E valor for válido
+    let precoPromoNum: number | null = null
+    if (emPromocao) {
+      const n = Number(precoPromocional)
+      if (Number.isNaN(n) || n <= 0) {
+        alert('Preço promocional inválido')
+        return
+      }
+      if (n >= precoNum) {
+        alert('O preço promocional deve ser menor que o preço normal')
+        return
+      }
+      precoPromoNum = n
     }
 
     setSaving(true)
     const payload = {
       nome,
       descricao,
-      preco: Number(preco),
+      preco: precoNum,
+      preco_promocional: precoPromoNum,
       quantidade: qtd,
       estoque_minimo: min,
       estoque_maximo: max,
@@ -391,6 +429,84 @@ export default function MercadoriaDetalhe() {
             keyboardType="numeric"
             placeholder="0,00"
           />
+
+          {/* Toggle de promoção */}
+          <View style={styles.destaqueRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Em promoção?</Text>
+              <Text style={styles.destaqueHint}>
+                Quando ligado, define um preço promocional menor que o normal.
+              </Text>
+            </View>
+            <Switch
+              value={emPromocao}
+              onValueChange={(v) => {
+                setEmPromocao(v)
+                if (!v) setPrecoPromocional('')
+              }}
+              trackColor={{ false: '#DDD', true: '#255336' }}
+              thumbColor="#FFF"
+            />
+          </View>
+
+          {emPromocao && (
+            <>
+              <FormInput
+                label="Preço promocional (R$)"
+                value={precoPromocional}
+                onChangeText={setPrecoPromocional}
+                keyboardType="numeric"
+                placeholder="0,00"
+              />
+
+              {/* Indicador do desconto calculado em tempo real */}
+              {(() => {
+                const p = Number(preco)
+                const pp = Number(precoPromocional)
+                if (Number.isNaN(p) || p <= 0) return null
+                if (Number.isNaN(pp) || pp <= 0) {
+                  return (
+                    <Text style={styles.promoHintNeutro}>
+                      Preencha o preço promocional para calcular o desconto.
+                    </Text>
+                  )
+                }
+                if (pp >= p) {
+                  return (
+                    <Text style={styles.promoHintInvalido}>
+                      ⚠ O preço promocional precisa ser menor que R$ {p.toFixed(2)}.
+                    </Text>
+                  )
+                }
+                const pct = ((p - pp) / p) * 100
+                const economia = p - pp
+                return (
+                  <View style={styles.promoBadgeBox}>
+                    <View style={styles.promoBadgePct}>
+                      <Text style={styles.promoBadgePctText}>
+                        -{pct.toFixed(0)}%
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.promoBadgeLinhaCheia}>
+                        De{' '}
+                        <Text style={styles.promoPrecoOriginal}>
+                          R$ {p.toFixed(2)}
+                        </Text>{' '}
+                        por{' '}
+                        <Text style={styles.promoPrecoNovo}>
+                          R$ {pp.toFixed(2)}
+                        </Text>
+                      </Text>
+                      <Text style={styles.promoBadgeEconomia}>
+                        Economia de R$ {economia.toFixed(2)}
+                      </Text>
+                    </View>
+                  </View>
+                )
+              })()}
+            </>
+          )}
 
           {/* ── Estoque ── */}
           <Text style={styles.secao}>
@@ -659,5 +775,57 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Poppins-SemiBold',
     color: '#255336',
+  },
+  // ── Indicador de promoção ──
+  promoHintNeutro: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Regular',
+    color: '#999999',
+    fontStyle: 'italic',
+  },
+  promoHintInvalido: {
+    fontSize: 12,
+    fontFamily: 'Poppins-SemiBold',
+    color: '#DC2626',
+  },
+  promoBadgeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+    padding: 12,
+  },
+  promoBadgePct: {
+    backgroundColor: '#DC2626',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  promoBadgePctText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontFamily: 'Poppins-SemiBold',
+  },
+  promoBadgeLinhaCheia: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Regular',
+    color: '#333333',
+  },
+  promoPrecoOriginal: {
+    textDecorationLine: 'line-through',
+    color: '#999999',
+  },
+  promoPrecoNovo: {
+    fontFamily: 'Poppins-SemiBold',
+    color: '#255336',
+  },
+  promoBadgeEconomia: {
+    fontSize: 11,
+    fontFamily: 'Poppins-Regular',
+    color: '#92400E',
+    marginTop: 2,
   },
 })
