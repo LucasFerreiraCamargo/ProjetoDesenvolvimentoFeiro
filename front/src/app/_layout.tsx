@@ -19,12 +19,13 @@ export default function RootLayout() {
 
   // Páginas que não devem ter header e nav
   const pagesWithoutHeaderNav = ["/", "/login", "/onboarding"];
+  const isAdminRoute = pathname.startsWith("/admin");
 
   // Páginas que têm header customizado (apenas cesta)
   const pagesWithCustomHeader = ["/cesta"];
   const hasCustomHeader = pagesWithCustomHeader.includes(pathname);
 
-  const shouldShowHeaderNav = !pagesWithoutHeaderNav.includes(pathname);
+  const shouldShowHeaderNav = !pagesWithoutHeaderNav.includes(pathname) && !isAdminRoute;
 
   if (!fontsLoaded) {
     return null;

@@ -102,7 +102,7 @@ const NotificacoesScreen = () => {
 
     switch (notificacao.tipo) {
       case "pedido":
-        router.push("/cesta");
+        router.push("/cesta/cesta");
         break;
       case "promocao":
         router.push("/feiras");

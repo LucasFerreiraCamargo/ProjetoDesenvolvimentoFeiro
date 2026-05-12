@@ -14,7 +14,10 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Este app precisa da sua localização para mostrar as feiras próximas a você."
+        "NSLocationWhenInUseUsageDescription": "Este app precisa da sua localização para mostrar as feiras próximas a você.",
+        "NSCameraUsageDescription": "Este app precisa da câmera para tirar fotos dos produtos.",
+        "NSPhotoLibraryUsageDescription": "Este app precisa acessar suas fotos para selecionar imagens dos produtos.",
+        "NSPhotoLibraryAddUsageDescription": "Este app precisa salvar fotos dos produtos na sua biblioteca."
       },
       "bundleIdentifier": "com.anonymous.feiroexpo",
       "config": {
@@ -32,7 +35,10 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES"
       ],
       "config": {
         "googleMaps": {
@@ -64,7 +70,14 @@
         }
       ],
       "expo-maps",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Este app precisa acessar suas fotos para selecionar imagens dos produtos.",
+          "cameraPermission": "Este app precisa da câmera para tirar fotos dos produtos."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

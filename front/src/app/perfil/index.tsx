@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useUser } from "../../contexts/UserContext";
+import type { Pedido } from '@/src/contexts/UserContext';
 
 
 const PerfilScreen = () => {
@@ -221,11 +222,12 @@ const PerfilScreen = () => {
         <View style={styles.pedidosSection}>
           <Text style={styles.sectionTitle}>Últimos Pedidos</Text>
           {user?.pedidos && user.pedidos.length > 0 ? (
-            user.pedidos.map((p: any) => (
+            user.pedidos.map((p: Pedido) => (
               <TouchableOpacity
                 key={p.id}
                 style={styles.pedidoCard}
-                onPress={() => router.push(`/acompanhar-pedido?id=${p.id}`)}
+                // onPress={() => router.push(`/acompanhar-pedido?id=${p.id}`)}
+                onPress={() => router.push({ pathname: '/acompanhar-pedido/[id]', params: { id: p.id } })}
               >
                 <View style={{ flex: 1 }}>
                   <Text style={styles.pedidoId}>Pedido #{p.id}</Text>

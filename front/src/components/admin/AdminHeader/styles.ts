@@ -1,0 +1,92 @@
+import { StyleSheet } from 'react-native'
+
+export default StyleSheet.create({
+  header: {
+    backgroundColor: '#FFF7E4',
+    width: '100%',
+    height: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 30,
+    shadowColor: 'rgba(0,0,0,0.05)',
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 2,
+    elevation: 2,
+    shadowOpacity: 1,
+  },
+  headerContent: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    width: '100%',
+  },
+  leftSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  logoSmall: {
+    width: 60,
+    height: 100,
+  },
+  badge: {
+    backgroundColor: '#255336',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  badgeText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontFamily: 'Poppins-SemiBold',
+  },
+  titulo: {
+    fontSize: 16,
+    fontFamily: 'Poppins-SemiBold',
+    color: '#255336',
+  },
+  adminButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  adminNome: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    color: '#333333',
+  },
+  menu: {
+    position: 'absolute',
+    right: 16,
+    top: 96,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    paddingVertical: 4,
+    minWidth: 160,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    zIndex: 100,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  menuText: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    color: '#333333',
+  },
+  menuDivisor: {
+    height: 1,
+    backgroundColor: '#EEEEEE',
+    marginHorizontal: 8,
+  },
+})
