@@ -137,6 +137,11 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       email: data.email,
       token: data.token,
       nivel: data.nivel,
+      telefone: data.telefone,
+      endereco: data.endereco,
+      bairro: data.bairro,
+      latitude: data.latitude ?? null,
+      longitude: data.longitude ?? null,
     })
   }
 

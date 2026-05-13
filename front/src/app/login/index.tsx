@@ -52,6 +52,12 @@ export default function LoginScreen() {
           email: data.email,
           token: data.token,
           nivel: data.nivel as any,
+          telefone: data.telefone,
+          endereco: data.endereco,
+          bairro: data.bairro,
+          cep: data.cep ?? null,
+          latitude: data.latitude ?? null,
+          longitude: data.longitude ?? null,
           avatar: undefined,
           membro_desde: undefined,
         } as any);

@@ -16,6 +16,12 @@ import {
 
 import { useApp } from "../../contexts/AppContext";
 import { useCesta } from "../../contexts/CestaContext";
+import { useUser } from "../../contexts/UserContext";
+import {
+  distanciaKm,
+  feiranteAtendeCliente,
+  formataDistancia,
+} from "../../utils/distancia";
 
 const categorias = ["Todos", "Frutas", "Verduras", "Legumes"];
 
@@ -84,6 +90,7 @@ export default function ProdutosFeiranteScreen() {
 
   // Contextos
   const { state, getFeirante, getFeira, getAllProdutos } = useApp();
+  const { user } = useUser();
   const {
     state: cestaState,
     adicionarItem,
@@ -496,6 +503,95 @@ export default function ProdutosFeiranteScreen() {
           </TouchableOpacity>
           <Text style={styles.title}>Feirante não encontrado</Text>
           <View style={{ width: 24 }} />
+        </View>
+      </View>
+    );
+  }
+
+  // Decide se o cliente atual está dentro do raio de entrega deste feirante.
+  const clienteCoords = {
+    latitude: user?.latitude ?? null,
+    longitude: user?.longitude ?? null,
+  };
+  const clienteTemCoordenadas =
+    clienteCoords.latitude != null && clienteCoords.longitude != null;
+  const dentroDoRaio = feiranteAtendeCliente(feirante, clienteCoords);
+
+  // Distância exata (só quando os dois lados têm coordenadas válidas)
+  const distanciaCalc =
+    feirante.latitude != null &&
+    feirante.longitude != null &&
+    clienteTemCoordenadas
+      ? distanciaKm(
+          {
+            latitude: Number(feirante.latitude),
+            longitude: Number(feirante.longitude),
+          },
+          {
+            latitude: Number(clienteCoords.latitude),
+            longitude: Number(clienteCoords.longitude),
+          }
+        )
+      : null;
+
+  // Cliente fora do raio → bloqueia a compra mas permite ver o feirante.
+  if (clienteTemCoordenadas && !dentroDoRaio) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.internalHeader}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="#2D5D31" />
+          </TouchableOpacity>
+          <Text style={styles.title}>Fora da área</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <View
+          style={{
+            flex: 1,
+            justifyContent: "center",
+            alignItems: "center",
+            paddingHorizontal: 32,
+          }}
+        >
+          <Ionicons name="location-outline" size={56} color="#92400E" />
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: "700",
+              color: "#92400E",
+              marginTop: 12,
+              textAlign: "center",
+            }}
+          >
+            {feirante.nome ?? "Este feirante"} não atende sua região
+          </Text>
+          <Text
+            style={{
+              fontSize: 14,
+              color: "#666",
+              marginTop: 8,
+              textAlign: "center",
+              lineHeight: 20,
+            }}
+          >
+            {distanciaCalc != null
+              ? `Você está a ${formataDistancia(distanciaCalc)} dele, mas o raio de entrega é de ${feirante.raio_entrega_km ?? 10} km.`
+              : "O raio de entrega configurado não cobre seu endereço."}
+          </Text>
+          <TouchableOpacity
+            style={{
+              marginTop: 24,
+              paddingHorizontal: 20,
+              paddingVertical: 12,
+              borderRadius: 8,
+              backgroundColor: "#255336",
+            }}
+            onPress={() => router.replace("/home")}
+          >
+            <Text style={{ color: "#FFF", fontWeight: "600" }}>
+              Voltar para a home
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     );

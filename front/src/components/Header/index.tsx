@@ -66,7 +66,7 @@ const Header: React.FC = () => {
         {/* Direita: ícones de ação */}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
           {usePathname() === "/home" && (
-            <TouchableOpacity onPress={() => router.push("/editar-perfil")}>
+            <TouchableOpacity onPress={() => router.push("/perfil")}>
               <Ionicons name="person-outline" size={24} color="#4A4A4A" />
             </TouchableOpacity>
           )}

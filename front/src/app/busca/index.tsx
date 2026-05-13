@@ -12,6 +12,8 @@ import {
   View,
 } from "react-native";
 import { useApp } from "../../contexts/AppContext";
+import { useUser } from "../../contexts/UserContext";
+import { feiranteAtendeCliente } from "../../utils/distancia";
 
 // Base URL da API
 const API_BASE =
@@ -84,6 +86,13 @@ const BuscaScreen = () => {
   const [carregandoCestas, setCarregandoCestas] = useState(true);
 
   const { state } = useApp();
+  const { user } = useUser();
+
+  // Coordenadas do cliente (vindas do login). Usadas pelo filtro de proximidade.
+  const clienteCoords = {
+    latitude: user?.latitude ?? null,
+    longitude: user?.longitude ?? null,
+  };
 
   // IDs das categorias do menu (home) → valores do enum Categoria na API
   const getCategoriasFiltro = (categoriaId: string): string[] => {
@@ -195,8 +204,11 @@ const BuscaScreen = () => {
 
   // ----------- Carregadores baseados nas mercadorias da API -----------
 
+  // Aplica AMBOS os filtros: estoque suficiente E feirante atende o cliente.
   const produtosDisponiveis = () =>
-    mercadoriasApi.filter(estaDisponivelParaVenda);
+    mercadoriasApi
+      .filter(estaDisponivelParaVenda)
+      .filter((m: any) => feiranteAtendeCliente(m?.feirante, clienteCoords));
 
   const carregarPromocoes = () => {
     setCarregando(true);
@@ -213,7 +225,9 @@ const BuscaScreen = () => {
 
   const carregarCestas = () => {
     setCarregando(true);
-    const cestasFormatadas = cestasApi.map(cestaParaResultado);
+    const cestasFormatadas = cestasApi
+      .filter((c: any) => feiranteAtendeCliente(c?.feirante, clienteCoords))
+      .map(cestaParaResultado);
     setResultados(cestasFormatadas);
     setCarregando(false);
   };
@@ -246,9 +260,10 @@ const BuscaScreen = () => {
       )
       .map(mercadoriaParaResultado);
 
-    // Cestas (API) por nome
+    // Cestas (API) por nome + filtro de proximidade
     const cestasFiltradas: ResultadoBusca[] = cestasApi
       .filter((c) => String(c.nome ?? "").toLowerCase().includes(termoLow))
+      .filter((c: any) => feiranteAtendeCliente(c?.feirante, clienteCoords))
       .map(cestaParaResultado);
 
     // Feiras (mock) por nome

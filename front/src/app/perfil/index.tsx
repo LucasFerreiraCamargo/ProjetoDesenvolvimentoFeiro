@@ -50,13 +50,22 @@ const PerfilScreen = () => {
   const [email, setEmail] = useState(user?.email ?? "");
   const [telefone, setTelefone] = useState(user?.telefone ?? "");
   const [endereco, setEndereco] = useState(user?.endereco ?? "");
+  const [numero, setNumero] = useState((user as any)?.numero ?? "");
   const [bairro, setBairro] = useState((user as any)?.bairro ?? "");
+  const [cidade, setCidade] = useState((user as any)?.cidade ?? "");
+  const [estado, setEstado] = useState((user as any)?.estado ?? "");
+  const [uf, setUf] = useState((user as any)?.uf ?? "");
+  const [pais, setPais] = useState((user as any)?.pais ?? "Brasil");
+  const [cep, setCep] = useState((user as any)?.cep ?? "");
   const [avatar, setAvatar] = useState<string | null>(user?.avatar ?? null);
+  const [buscandoCep, setBuscandoCep] = useState(false);
+  const [recalculandoLocal, setRecalculandoLocal] = useState(false);
 
   // ── Troca de senha (opcional, sub-formulário) ─────────────────────────────
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [novaSenha, setNovaSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
+
 
   // Quando o user muda (ex: depois do fetch), sincroniza os campos.
   useEffect(() => {
@@ -65,10 +74,100 @@ const PerfilScreen = () => {
       setEmail(user?.email ?? "");
       setTelefone(user?.telefone ?? "");
       setEndereco(user?.endereco ?? "");
+      setNumero((user as any)?.numero ?? "");
       setBairro((user as any)?.bairro ?? "");
+      setCidade((user as any)?.cidade ?? "");
+      setEstado((user as any)?.estado ?? "");
+      setUf((user as any)?.uf ?? "");
+      setPais((user as any)?.pais ?? "Brasil");
+      setCep((user as any)?.cep ?? "");
       setAvatar(user?.avatar ?? null);
     }
   }, [user, editando]);
+
+  // Busca endereço pelo CEP no ViaCEP e preenche os campos automaticamente
+  async function buscarPeloCep() {
+    const digitos = cep.replace(/\D/g, "");
+    if (digitos.length !== 8) {
+      Alert.alert("CEP inválido", "Informe os 8 dígitos do CEP.");
+      return;
+    }
+    setBuscandoCep(true);
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${digitos}/json/`);
+      if (!res.ok) throw new Error("Falha na consulta");
+      const data = await res.json();
+      if (data?.erro) {
+        Alert.alert("CEP não encontrado", "Verifique o número digitado.");
+        return;
+      }
+      // Preenche rua e bairro. Não toca em "número" que está dentro do endereço.
+      if (data.logradouro) setEndereco(data.logradouro);
+      if (data.bairro) setBairro(data.bairro);
+      if (data.localidade) setCidade(data.localidade);
+      if (data.uf) setUf(data.uf);
+      if (data.estado) setEstado(data.estado);
+    } catch (e: any) {
+      Alert.alert(
+        "Erro",
+        e?.message ?? "Não foi possível consultar o CEP no ViaCEP."
+      );
+    } finally {
+      setBuscandoCep(false);
+    }
+  }
+
+  // Força um re-geocoding no back-end usando o endereço/CEP que já está no banco
+  async function recalcularLocalizacao() {
+    if (!user?.id || !user?.token) {
+      Alert.alert("Você precisa estar logado");
+      return;
+    }
+    setRecalculandoLocal(true);
+    try {
+      const res = await fetch(
+        `${API_BASE.replace(/\/$/, "")}/usuarios/${user.id}/recalcular-localizacao`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${user.token}`,
+          },
+        }
+      );
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        Alert.alert(
+          "Não foi possível recalcular",
+          (body as any)?.erro ?? `Erro ${res.status}`
+        );
+        return;
+      }
+      const merged: User = {
+        ...(user || {}),
+        ...(body || {}),
+        token: user.token,
+        avatar: user.avatar ?? null,
+      } as User;
+      setUser(merged);
+      if ((body as any)?.geocodificado) {
+        Alert.alert(
+          "Localização atualizada",
+          "Suas coordenadas foram recalculadas. Os produtos da home agora serão filtrados pela sua região."
+        );
+      } else {
+        Alert.alert(
+          "Não foi possível geocodificar",
+          "Não conseguimos converter seu endereço em coordenadas. Tente preencher o CEP, ou um endereço mais completo (com número e bairro)."
+        );
+      }
+    } catch (e: any) {
+      console.warn("[Perfil] recalcular falhou:", e);
+      Alert.alert("Erro", e?.message ?? "Falha de conexão.");
+    } finally {
+      setRecalculandoLocal(false);
+    }
+  }
 
   // Busca dados frescos do usuário ao abrir a tela — apenas merge local
   // (sem disparar PUT). Mantém token e avatar locais.
@@ -174,6 +273,10 @@ const PerfilScreen = () => {
     if (endereco && endereco.trim().length < 2)
       return "Endereço muito curto.";
     if (bairro && bairro.trim().length < 2) return "Bairro muito curto.";
+    if (cep) {
+      const d = cep.replace(/\D/g, "");
+      if (d.length !== 8) return "CEP deve ter 8 dígitos.";
+    }
     if (mostrarSenha) {
       if (novaSenha.length < 8) return "A senha deve ter no mínimo 8 caracteres.";
       if (!/[A-Z]/.test(novaSenha))
@@ -200,9 +303,16 @@ const PerfilScreen = () => {
         // Manda só os dígitos do telefone (a API exige /^\d{10,11}$/)
         telefone: telefone.replace(/\D/g, ""),
         endereco: endereco.trim(),
+        numero: numero.trim(),
         bairro: bairro.trim(),
+        cidade: cidade.trim(),
+        estado: estado.trim(),
+        uf: uf.trim().toUpperCase(),
+        pais: pais.trim(),
         avatar, // local apenas (não vai pra API atualmente)
       };
+      // CEP só vai se preenchido (campo é opcional no Zod)
+      if (cep && cep.trim()) patch.cep = cep.replace(/\D/g, "");
       if (mostrarSenha && novaSenha) patch.senha = novaSenha;
 
       await updateUser(patch);
@@ -229,7 +339,13 @@ const PerfilScreen = () => {
     setEmail(user?.email ?? "");
     setTelefone(user?.telefone ?? "");
     setEndereco(user?.endereco ?? "");
+    setNumero((user as any)?.numero ?? "");
     setBairro((user as any)?.bairro ?? "");
+    setCidade((user as any)?.cidade ?? "");
+    setEstado((user as any)?.estado ?? "");
+    setUf((user as any)?.uf ?? "");
+    setPais((user as any)?.pais ?? "Brasil");
+    setCep((user as any)?.cep ?? "");
     setAvatar(user?.avatar ?? null);
     setMostrarSenha(false);
     setNovaSenha("");
@@ -318,8 +434,43 @@ const PerfilScreen = () => {
               {user?.endereco ? (
                 <Text style={styles.usuarioEndereco}>
                   {user.endereco}
+                  {((user as any)?.numero) ? `, ${(user as any).numero}` : ""}
                   {(user as any)?.bairro ? ` • ${(user as any).bairro}` : ""}
+                  {(user as any)?.cidade ? ` • ${(user as any).cidade}/${(user as any).uf}` : ""}
+                  {(user as any)?.cep ? ` • CEP ${(user as any).cep}` : ""}
+
                 </Text>
+              ) : null}
+
+              {/* Aviso + botão se o usuário tem endereço mas sem coordenadas */}
+              {user?.endereco && (user?.latitude == null || user?.longitude == null) ? (
+                <View style={styles.avisoLocal}>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={18}
+                    color="#92400E"
+                  />
+                  <Text style={styles.avisoLocalTexto}>
+                    Sua localização ainda não foi calculada — os produtos da home
+                    não estão filtrados pela sua região.
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.btnRecalcular,
+                      recalculandoLocal && styles.btnDesabilitado,
+                    ]}
+                    onPress={recalcularLocalizacao}
+                    disabled={recalculandoLocal}
+                  >
+                    {recalculandoLocal ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.btnRecalcularText}>
+                        Recalcular minha localização
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
               ) : null}
             </View>
           ) : (
@@ -355,12 +506,91 @@ const PerfilScreen = () => {
                 editable={!salvando}
               />
 
+              <Text style={styles.label}>CEP</Text>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  value={cep}
+                  onChangeText={setCep}
+                  placeholder="00000-000"
+                  keyboardType="numeric"
+                  editable={!salvando && !buscandoCep}
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.btnBuscarCep,
+                    (buscandoCep || salvando) && styles.btnDesabilitado,
+                  ]}
+                  onPress={buscarPeloCep}
+                  disabled={buscandoCep || salvando}
+                >
+                  {buscandoCep ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.btnBuscarCepText}>Buscar</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.label}>Estado</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={estado}
+                    onChangeText={setEstado}
+                    placeholder="Ex: Rio Grande do Sul"
+                    editable={!salvando}
+                  />
+                </View>
+
+                <Text style={styles.label}>País</Text>
+                <TextInput
+                  style={styles.input}
+                  value={pais}
+                  onChangeText={setPais}
+                  placeholder="Ex: Brasil"
+                  editable={!salvando}
+                />
+
+                <View style={{ flex: 0.4 }}>
+                  <Text style={styles.label}>UF</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={uf}
+                    onChangeText={setUf}
+                    placeholder="Ex: RS"
+                    maxLength={2}
+                    autoCapitalize="characters"
+                    editable={!salvando}
+                  />
+                </View>
+              </View>
+
+              <Text style={styles.label}>Cidade</Text>
+              <TextInput
+                style={styles.input}
+                value={cidade}
+                onChangeText={setCidade}
+                placeholder="Ex: Pelotas"
+                editable={!salvando}
+              />
+
               <Text style={styles.label}>Endereço</Text>
               <TextInput
                 style={styles.input}
                 value={endereco}
                 onChangeText={setEndereco}
                 placeholder="Rua, número"
+                editable={!salvando}
+              />
+
+              <Text style={styles.label}>Número</Text>
+              <TextInput
+                style={styles.input}
+                value={numero}
+                onChangeText={setNumero}
+                placeholder="Ex: 123 ou S/N"
                 editable={!salvando}
               />
 
@@ -696,6 +926,42 @@ const styles = StyleSheet.create({
   },
   btnSalvarText: { color: "#FFFFFF", fontWeight: "600" },
   btnDesabilitado: { opacity: 0.6 },
+  btnBuscarCep: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: "#255336",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  btnBuscarCepText: { color: "#FFFFFF", fontWeight: "600", fontSize: 13 },
+  avisoLocal: {
+    width: "100%",
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: "#FEF3C7",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#FCD34D",
+    alignItems: "center",
+    gap: 8,
+  },
+  avisoLocalTexto: {
+    color: "#92400E",
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 16,
+  },
+  btnRecalcular: {
+    marginTop: 4,
+    backgroundColor: "#92400E",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  btnRecalcularText: { color: "#FFFFFF", fontWeight: "600", fontSize: 13 },
 
   // seções
   secao: { marginHorizontal: 16, marginBottom: 24 },

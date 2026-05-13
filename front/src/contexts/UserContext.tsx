@@ -17,6 +17,13 @@ export interface User {
   nivel?: any;
   telefone?: string;
   endereco?: string;
+  numero?: string;
+  bairro?: string;
+  /** CEP — só dígitos no estado (sem máscara). */
+  cep?: string | null;
+  /** Coordenadas geográficas do endereço do usuário (preenchidas no back). */
+  latitude?: number | null;
+  longitude?: number | null;
   avatar?: string | null; // url ou base64
   membro_desde?: string;
   pedidos_realizados?: number;
@@ -155,7 +162,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     // Constrói payload limpo: só envia campos que o usuário realmente forneceu.
     // (Campos cosméticos como `avatar` ainda não existem no banco; preservados localmente.)
-    const camposApi = ["nome", "email", "telefone", "endereco", "bairro", "senha"] as const;
+    const camposApi = ["nome", "email", "telefone", "endereco", "numero", "bairro", "cep", "senha"] as const;
     const payloadApi: Record<string, any> = {};
     for (const k of camposApi) {
       const v = (patch as any)[k];

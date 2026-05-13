@@ -14,6 +14,8 @@ import {
 } from "react-native";
 
 import { useApp } from "../../contexts/AppContext";
+import { useUser } from "../../contexts/UserContext";
+import { feiranteAtendeCliente } from "../../utils/distancia";
 
 // Base URL da API (mesmo padrão usado nas outras telas)
 const API_BASE =
@@ -398,14 +400,21 @@ function mapCestaParaCard(c: any) {
 // --- Tela Principal ---
 export default function HomeScreen() {
   const { state, getAllProdutos } = useApp();
+  const { user } = useUser();
 
   // Produtos reais da API (substitui o mock para "Promoções do Dia")
   const [produtosApi, setProdutosApi] = useState<any[]>([]);
   const [loadingProdutos, setLoadingProdutos] = useState(true);
+  // Quando o usuário tem endereço geocodificado, aplicamos filtro por raio
+  const [filtradoPorRaio, setFiltradoPorRaio] = useState(false);
 
   // Cestas reais da API (substitui o mock para "Cestas em Oferta")
   const [cestasApi, setCestasApi] = useState<any[]>([]);
   const [loadingCestas, setLoadingCestas] = useState(true);
+
+  // Cliente é "geolocalizável" se tem latitude e longitude válidas
+  const clienteTemCoordenadas =
+    user?.latitude != null && user?.longitude != null;
 
   useEffect(() => {
     let cancelado = false;
@@ -424,11 +433,22 @@ export default function HomeScreen() {
         }
         const data = await res.json();
         const lista = Array.isArray(data) ? data : [];
-        // Filtra: precisa ter estoque > 0 E >= estoque_minimo definido pelo feirante
+
+        // Filtro 1: estoque suficiente para venda
+        // Filtro 2: o feirante atende a região do cliente (se cliente tem coords)
         const disponiveis = lista
           .filter(estaDisponivelParaVenda)
+          .filter((m: any) =>
+            feiranteAtendeCliente(m?.feirante, {
+              latitude: user?.latitude ?? null,
+              longitude: user?.longitude ?? null,
+            })
+          )
           .map(mapMercadoriaParaCard);
-        if (!cancelado) setProdutosApi(disponiveis);
+        if (!cancelado) {
+          setProdutosApi(disponiveis);
+          setFiltradoPorRaio(clienteTemCoordenadas);
+        }
       } catch (e) {
         console.error("[Home] Falha ao buscar mercadorias:", e);
         if (!cancelado) setProdutosApi([]);
@@ -448,7 +468,14 @@ export default function HomeScreen() {
         const data = await res.json();
         const lista = Array.isArray(data) ? data : [];
         if (!cancelado) {
+          // Mesmo filtro de proximidade aplicado às cestas
           const mapeadas = lista
+            .filter((c: any) =>
+              feiranteAtendeCliente(c?.feirante, {
+                latitude: user?.latitude ?? null,
+                longitude: user?.longitude ?? null,
+              })
+            )
             .map(mapCestaParaCard)
             .filter((x): x is NonNullable<typeof x> => x != null);
           setCestasApi(mapeadas);
@@ -466,7 +493,9 @@ export default function HomeScreen() {
     return () => {
       cancelado = true;
     };
-  }, []);
+    // Re-roda quando as coordenadas do cliente mudam (ex.: ele atualizou endereço)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.latitude, user?.longitude]);
 
   // Verificar se o context está carregado
   if (!state || !state.feiras) {
@@ -509,6 +538,27 @@ export default function HomeScreen() {
           <Ionicons name="mic-outline" size={20} color="#999" />
         </TouchableOpacity>
 
+        {/* Aviso: cliente sem endereço cadastrado */}
+        {user && !clienteTemCoordenadas ? (
+          <TouchableOpacity
+            style={styles.avisoEndereco}
+            onPress={() => router.push("/perfil")}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="location-outline" size={20} color="#92400E" />
+            <View style={{ flex: 1, marginLeft: 8 }}>
+              <Text style={styles.avisoEnderecoTitulo}>
+                Cadastre seu endereço
+              </Text>
+              <Text style={styles.avisoEnderecoTexto}>
+                Para ver só os produtos que entregam na sua região, atualize seu
+                endereço no perfil.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#92400E" />
+          </TouchableOpacity>
+        ) : null}
+
         {/* Categorias */}
         <View style={styles.categoriasContainer}>
           <Text style={styles.categoriasTitle}>Categorias</Text>
@@ -540,7 +590,9 @@ export default function HomeScreen() {
             />
           ) : promocoes.length === 0 ? (
             <Text style={styles.vazioTexto}>
-              Nenhum produto disponível no momento.
+              {filtradoPorRaio
+                ? "Nenhum feirante está atendendo na sua região no momento."
+                : "Nenhum produto disponível no momento."}
             </Text>
           ) : (
             <FlatList
@@ -752,6 +804,30 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     paddingHorizontal: 20,
     paddingVertical: 16,
+  },
+  avisoEndereco: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: "#FEF3C7",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#FCD34D",
+  },
+  avisoEnderecoTitulo: {
+    color: "#92400E",
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  avisoEnderecoTexto: {
+    color: "#92400E",
+    fontSize: 12,
+    lineHeight: 16,
   },
 
   horizontalList: {
