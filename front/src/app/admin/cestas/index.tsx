@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   StyleSheet,
   Text,
   TextInput,
@@ -13,6 +14,9 @@ import {
 import ConfirmModal from '../../../components/admin/ConfirmModal'
 import { useAdmin, useAdminGuard, useAdminTitulo } from '../../../contexts/AdminContext'
 import { adminFetch } from '../../../utils/adminApi'
+
+// Mesma imagem padrão usada na tela do cliente e no cadastro da cesta.
+const IMAGEM_PADRAO_CESTA = require('../../../../assets/images/cesta-padrao.png')
 
 export default function Cestas() {
   // Feirante (2) e Superadmin (3) podem acessar
@@ -92,7 +96,11 @@ export default function Cestas() {
           renderItem={({ item }) => (
             <View style={styles.card}>
               <View style={styles.cardTopo}>
-                <Text style={styles.emoji}>{item.emoji ?? '🧺'}</Text>
+                <Image
+                  source={item.imagem ? { uri: item.imagem } : IMAGEM_PADRAO_CESTA}
+                  style={styles.cestaThumb}
+                  resizeMode="cover"
+                />
                 <View style={{ flex: 1 }}>
                   <View style={styles.nomeLinha}>
                     <Text style={styles.nome}>{item.nome}</Text>
@@ -183,8 +191,15 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     shadowOpacity: 1,
   },
-  cardTopo: { flexDirection: 'row', gap: 12, marginBottom: 12 },
-  emoji: { fontSize: 32 },
+  cardTopo: { flexDirection: 'row', gap: 12, marginBottom: 12, alignItems: 'center' },
+  cestaThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    backgroundColor: '#F0F8F0',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
   nomeLinha: { flexDirection: 'row', justifyContent: 'space-between' },
   nome: { fontSize: 16, fontFamily: 'Poppins-SemiBold', color: '#333333', flex: 1 },
   preco: { fontSize: 16, fontFamily: 'Poppins-SemiBold', color: '#255336' },

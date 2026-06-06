@@ -54,6 +54,7 @@ export default function LoginScreen() {
           nivel: data.nivel as any,
           telefone: data.telefone,
           endereco: data.endereco,
+          numero: data.numero ?? null,
           bairro: data.bairro,
           cep: data.cep ?? null,
           latitude: data.latitude ?? null,

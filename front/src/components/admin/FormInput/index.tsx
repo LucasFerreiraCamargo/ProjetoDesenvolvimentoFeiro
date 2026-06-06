@@ -1,5 +1,5 @@
 import React from 'react'
-import { KeyboardTypeOptions, Text, TextInput, View } from 'react-native'
+import { KeyboardTypeOptions, Text, TextInput, TextInputProps, View } from 'react-native'
 import styles from './styles'
 
 interface FormInputProps {
@@ -14,6 +14,13 @@ interface FormInputProps {
   multiline?: boolean
   numberOfLines?: number
   maxLength?: number
+  /**
+   * Controla a capitalizacao automatica do TextInput.
+   * Default: "none" (mantem comportamento historico do componente).
+   */
+  autoCapitalize?: TextInputProps['autoCapitalize']
+  /** Callback disparado ao perder foco - util para normalizar texto digitado. */
+  onBlur?: TextInputProps['onBlur']
 }
 
 const FormInput: React.FC<FormInputProps> = ({
@@ -28,6 +35,8 @@ const FormInput: React.FC<FormInputProps> = ({
   multiline,
   numberOfLines,
   maxLength,
+  autoCapitalize = 'none',
+  onBlur,
 }) => {
   return (
     <View style={styles.container}>
@@ -49,7 +58,8 @@ const FormInput: React.FC<FormInputProps> = ({
         multiline={multiline}
         numberOfLines={numberOfLines}
         maxLength={maxLength}
-        autoCapitalize="none"
+        autoCapitalize={autoCapitalize}
+        onBlur={onBlur}
       />
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
     </View>

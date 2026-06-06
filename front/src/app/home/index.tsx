@@ -16,10 +16,13 @@ import {
 import { useApp } from "../../contexts/AppContext";
 import { useUser } from "../../contexts/UserContext";
 import { feiranteAtendeCliente } from "../../utils/distancia";
+import { mercadoriasService } from "../../services/mercadorias";
+import { cestasService } from "../../services/cestas";
+import type { Cesta, Mercadoria } from "../../types/api";
 
-// Base URL da API (mesmo padrão usado nas outras telas)
-const API_BASE =
-  (process.env.EXPO_PUBLIC_API_URL as string) || "http://localhost:3001";
+// Placeholders quando não há foto cadastrada (estilo iFood)
+const IMAGEM_PADRAO_CESTA = require("../../../assets/images/cesta-padrao.png");
+const IMAGEM_PADRAO_PRODUTO = require("../../../assets/images/produto-padrao.png");
 
 /**
  * Decide se uma mercadoria está disponível para venda.
@@ -180,26 +183,11 @@ const CardCesta = ({ item }: { item: any }) => (
     onPress={() => router.push(`/cesta/${item.id}`)}
   >
     <View style={styles.cestaImgContainer}>
-      {item.imagem ? (
-        <Image
-          source={{ uri: item.imagem }}
-          style={styles.cestaImage}
-          resizeMode="cover"
-        />
-      ) : (
-        <View
-          style={[
-            styles.cestaImage,
-            {
-              backgroundColor: "#FAFAFA",
-              justifyContent: "center",
-              alignItems: "center",
-            },
-          ]}
-        >
-          <Text style={{ fontSize: 32 }}>{item.emoji ?? "🧺"}</Text>
-        </View>
-      )}
+      <Image
+        source={item.imagem ? { uri: item.imagem } : IMAGEM_PADRAO_CESTA}
+        style={styles.cestaImage}
+        resizeMode="cover"
+      />
       {item.desconto ? (
         <View style={styles.cestaDesconto}>
           <Text style={styles.cestaDescontoText}>{item.desconto}</Text>
@@ -274,26 +262,11 @@ const CardProduto = ({ item }: { item: any }) => {
   return (
     <TouchableOpacity style={styles.cardProduto} onPress={navegarParaProduto}>
       <View style={styles.cardImgContainer}>
-        {item.imagem ? (
-          <Image
-            source={{ uri: item.imagem }}
-            style={styles.cardImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View
-            style={[
-              styles.cardImage,
-              {
-                backgroundColor: "#FAFAFA",
-                justifyContent: "center",
-                alignItems: "center",
-              },
-            ]}
-          >
-            <Text style={{ fontSize: 32 }}>{item.emoji ?? "🛒"}</Text>
-          </View>
-        )}
+        <Image
+          source={item.imagem ? { uri: item.imagem } : IMAGEM_PADRAO_PRODUTO}
+          style={styles.cardImage}
+          resizeMode="cover"
+        />
         {temPromocao && (
           <View style={styles.cardDesconto}>
             <Text style={styles.cardDescontoText}>-{pctDesconto}%</Text>
@@ -420,25 +393,13 @@ export default function HomeScreen() {
     let cancelado = false;
     async function carregarMercadorias() {
       try {
-        const res = await fetch(
-          `${API_BASE.replace(/\/$/, "")}/mercadorias`
-        );
-        if (!res.ok) {
-          console.warn(
-            "[Home] /mercadorias respondeu erro:",
-            res.status
-          );
-          if (!cancelado) setProdutosApi([]);
-          return;
-        }
-        const data = await res.json();
-        const lista = Array.isArray(data) ? data : [];
+        const lista = await mercadoriasService.listar();
 
         // Filtro 1: estoque suficiente para venda
         // Filtro 2: o feirante atende a região do cliente (se cliente tem coords)
         const disponiveis = lista
           .filter(estaDisponivelParaVenda)
-          .filter((m: any) =>
+          .filter((m: Mercadoria) =>
             feiranteAtendeCliente(m?.feirante, {
               latitude: user?.latitude ?? null,
               longitude: user?.longitude ?? null,
@@ -459,18 +420,11 @@ export default function HomeScreen() {
 
     async function carregarCestas() {
       try {
-        const res = await fetch(`${API_BASE.replace(/\/$/, "")}/cestas`);
-        if (!res.ok) {
-          console.warn("[Home] /cestas respondeu erro:", res.status);
-          if (!cancelado) setCestasApi([]);
-          return;
-        }
-        const data = await res.json();
-        const lista = Array.isArray(data) ? data : [];
+        const lista = await cestasService.listar();
         if (!cancelado) {
           // Mesmo filtro de proximidade aplicado às cestas
           const mapeadas = lista
-            .filter((c: any) =>
+            .filter((c: Cesta) =>
               feiranteAtendeCliente(c?.feirante, {
                 latitude: user?.latitude ?? null,
                 longitude: user?.longitude ?? null,

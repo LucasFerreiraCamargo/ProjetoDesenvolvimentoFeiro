@@ -16,6 +16,7 @@ import ActionButton from '../../../components/admin/ActionButton'
 import FormInput from '../../../components/admin/FormInput'
 import { useAdmin, useAdminGuard, useAdminTitulo } from '../../../contexts/AdminContext'
 import { adminFetch } from '../../../utils/adminApi'
+import { toTitleCasePtBr } from '../../../utils/texto'
 
 const CATEGORIAS = [
   'FRUTAS',
@@ -123,7 +124,6 @@ export default function MercadoriaDetalhe() {
   const [quantidade, setQuantidade] = useState('')
   const [estoqueMinimo, setEstoqueMinimo] = useState('5')
   const [estoqueMaximo, setEstoqueMaximo] = useState('100')
-  const [emoji, setEmoji] = useState('')
   const [categoria, setCategoria] = useState('FRUTAS')
   const [unidade, setUnidade] = useState('KG')
   const [destaque, setDestaque] = useState(false)
@@ -174,7 +174,6 @@ export default function MercadoriaDetalhe() {
       setQuantidade(String(data.quantidade ?? ''))
       setEstoqueMinimo(String(data.estoque_minimo ?? 5))
       setEstoqueMaximo(String(data.estoque_maximo ?? 100))
-      setEmoji(data.emoji ?? '')
       setCategoria(data.categoria ?? 'FRUTAS')
       setUnidade(data.unidade ?? 'KG')
       setDestaque(!!data.destaque)
@@ -228,7 +227,6 @@ export default function MercadoriaDetalhe() {
       quantidade: qtd,
       estoque_minimo: min,
       estoque_maximo: max,
-      emoji,
       categoria,
       unidade,
       destaque,
@@ -373,7 +371,17 @@ export default function MercadoriaDetalhe() {
           <Text style={styles.secao}>
             <Ionicons name="information-circle-outline" size={15} color="#255336" /> Identificação
           </Text>
-          <FormInput label="Nome do produto *" value={nome} onChangeText={setNome} placeholder="Ex: Tomate cereja" />
+          <FormInput
+            label="Nome do produto *"
+            value={nome}
+            onChangeText={setNome}
+            placeholder="Ex: Tomate cereja"
+            // Ao perder foco, normaliza para Title Case PT-BR ("tomate cereja" -> "Tomate Cereja").
+            onBlur={() => {
+              const normalizado = toTitleCasePtBr(nome)
+              if (normalizado !== nome) setNome(normalizado)
+            }}
+          />
           <FormInput
             label="Descrição"
             value={descricao}
@@ -382,8 +390,6 @@ export default function MercadoriaDetalhe() {
             multiline
             numberOfLines={3}
           />
-          <FormInput label="Emoji" value={emoji} onChangeText={setEmoji} placeholder="🍅" maxLength={2} />
-
           {/* ── Categoria e Unidade ── */}
           <Text style={styles.secao}>
             <Ionicons name="pricetag-outline" size={15} color="#255336" /> Categoria e Unidade
@@ -810,22 +816,23 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins-SemiBold',
   },
   promoBadgeLinhaCheia: {
-    fontSize: 13,
-    fontFamily: 'Poppins-Regular',
-    color: '#333333',
-  },
-  promoPrecoOriginal: {
-    textDecorationLine: 'line-through',
-    color: '#999999',
-  },
-  promoPrecoNovo: {
-    fontFamily: 'Poppins-SemiBold',
-    color: '#255336',
-  },
-  promoBadgeEconomia: {
-    fontSize: 11,
+    fontSize: 14,
     fontFamily: 'Poppins-Regular',
     color: '#92400E',
-    marginTop: 2,
+  },
+  promoPrecoOriginal: {
+    color: '#999999',
+    textDecorationLine: 'line-through',
+    fontFamily: 'Poppins-Regular',
+  },
+  promoPrecoNovo: {
+    color: '#DC2626',
+    fontFamily: 'Poppins-SemiBold',
+  },
+  promoBadgeEconomia: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#92400E',
+    fontFamily: 'Poppins-SemiBold',
   },
 })

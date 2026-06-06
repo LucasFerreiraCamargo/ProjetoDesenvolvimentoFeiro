@@ -17,10 +17,8 @@ const FILTROS = [
   'Todos',
   'PENDENTE',
   'EM_PREPARACAO',
-  'EM_ANDAMENTO',
   'EM_ROTA',
-  'ENTREGUE',
-  'RETORNANDO',
+  'FINALIZADO',
   'CANCELADO',
 ]
 

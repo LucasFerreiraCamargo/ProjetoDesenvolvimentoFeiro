@@ -581,7 +581,7 @@ const PerfilScreen = () => {
                 style={styles.input}
                 value={endereco}
                 onChangeText={setEndereco}
-                placeholder="Rua, número"
+                placeholder="Logradouro (ex: Rua das Flores)"
                 editable={!salvando}
               />
 
@@ -591,6 +591,7 @@ const PerfilScreen = () => {
                 value={numero}
                 onChangeText={setNumero}
                 placeholder="Ex: 123 ou S/N"
+                keyboardType="default"
                 editable={!salvando}
               />
 

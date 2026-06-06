@@ -10,6 +10,7 @@ type StatusPedido =
   | 'ENTREGUE'
   | 'RETORNANDO'
   | 'CANCELADO'
+  | 'FINALIZADO'
 type StatusLoja = 'Aberto' | 'Fechado'
 
 interface StatusBadgeProps {
@@ -24,6 +25,7 @@ const STATUS_MAP: Record<string, { bg: string; text: string; label: string }> = 
   ENTREGUE:      { bg: '#D1FAE5', text: '#065F46', label: 'Entregue' },
   RETORNANDO:    { bg: '#FFEDD5', text: '#C2410C', label: 'Retornando' },
   CANCELADO:     { bg: '#FEE2E2', text: '#DC2626', label: 'Cancelado' },
+  FINALIZADO:    { bg: '#E0F2FE', text: '#075985', label: 'Finalizado' },
   Aberto:        { bg: '#d1fae5', text: '#047857', label: 'Aberto' },
   Fechado:       { bg: '#fee2e2', text: '#dc2626', label: 'Fechado' },
 }

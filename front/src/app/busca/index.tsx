@@ -19,6 +19,10 @@ import { feiranteAtendeCliente } from "../../utils/distancia";
 const API_BASE =
   (process.env.EXPO_PUBLIC_API_URL as string) || "http://localhost:3001";
 
+// Placeholders quando não há foto cadastrada
+const IMAGEM_PADRAO_CESTA = require("../../../assets/images/cesta-padrao.png");
+const IMAGEM_PADRAO_PRODUTO = require("../../../assets/images/produto-padrao.png");
+
 type ResultadoBusca = {
   id: string;
   tipo: "feira" | "produto" | "feirante" | "cesta";
@@ -372,17 +376,17 @@ const BuscaScreen = () => {
     >
       <View style={styles.cardContent}>
         <View style={styles.imageContainer}>
-          {item.imagem ? (
-            <Image
-              source={{ uri: item.imagem }}
-              style={styles.itemImage}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={styles.emojiContainer}>
-              <Text style={styles.emoji}>{item.emoji || "🥬"}</Text>
-            </View>
-          )}
+          <Image
+            source={
+              item.imagem
+                ? { uri: item.imagem }
+                : item.tipo === "cesta"
+                ? IMAGEM_PADRAO_CESTA
+                : IMAGEM_PADRAO_PRODUTO
+            }
+            style={styles.itemImage}
+            resizeMode="cover"
+          />
           {item.desconto && (
             <View style={styles.descontoTag}>
               <Text style={styles.descontoText}>{item.desconto}</Text>
@@ -630,12 +634,12 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingHorizontal: 40,
   },
+  semResultadosIcon: {
+    fontSize: 64,
+  },
   semResultadosText: {
     fontSize: 16,
     color: "#666",
     textAlign: "center",
-    lineHeight: 24,
   },
-});
-
-export default BuscaScreen;
+})

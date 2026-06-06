@@ -23,6 +23,14 @@ import {
   formataDistancia,
 } from "../../utils/distancia";
 
+// Placeholder estilo iFood quando a mercadoria não tem foto
+const IMAGEM_PADRAO_PRODUTO = require("../../../assets/images/produto-padrao.png");
+
+/** Devolve o source pra <Image>: foto real se existir, senão placeholder local. */
+function sourceProduto(uri: string | undefined | null): any {
+  return uri ? { uri } : IMAGEM_PADRAO_PRODUTO;
+}
+
 const categorias = ["Todos", "Frutas", "Verduras", "Legumes"];
 
 // Base URL da API
@@ -739,9 +747,9 @@ export default function ProdutosFeiranteScreen() {
                   <View style={styles.carrinhoCardHeader}>
                     <View style={styles.carrinhoImageContainer}>
                       <Image
-                        source={{
-                          uri: produtoImages[item.produtoId] || item.imagem,
-                        }}
+                        source={sourceProduto(
+                          produtoImages[item.produtoId] || item.imagem
+                        )}
                         style={styles.carrinhoImagem}
                         resizeMode="cover"
                       />
@@ -836,9 +844,9 @@ export default function ProdutosFeiranteScreen() {
                 <View style={styles.produtoHeader}>
                   <View style={styles.produtoImageContainer}>
                     <Image
-                      source={{
-                        uri: produtoImages[produto.id] || produto.imagem,
-                      }}
+                      source={sourceProduto(
+                        produtoImages[produto.id] || produto.imagem
+                      )}
                       style={styles.produtoImagem}
                       resizeMode="cover"
                     />
@@ -1765,19 +1773,20 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   fixedCestaBadge: {
-    position: "absolute",
-    top: -5,
-    right: -5,
-    backgroundColor: "#E74C3C",
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#E74C3C',
     borderRadius: 10,
     minWidth: 20,
     height: 20,
-    alignItems: "center",
-    justifyContent: "center",
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   fixedCestaBadgeText: {
-    color: "#FFF",
-    fontSize: 12,
-    fontWeight: "bold",
+    color: '#FFF',
+    fontSize: 11,
+    fontWeight: 'bold',
   },
-});
+})

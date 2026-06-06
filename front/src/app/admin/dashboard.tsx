@@ -192,7 +192,9 @@ export default function Dashboard() {
                 <View style={styles.pedidoTopo}>
                   <Text style={styles.pedidoId}>Pedido #{p.id}</Text>
                   <Text style={styles.pedidoValor}>
-                    R$ {Number(p.total || 0).toFixed(2)}
+                    {/* API retorna `valor_total` (do schema Prisma); o ?? p.total mantém
+                        compatibilidade com qualquer endpoint legado que use o nome curto. */}
+                    R$ {Number(p.valor_total ?? p.total ?? 0).toFixed(2)}
                   </Text>
                 </View>
                 <View style={styles.pedidoBase}>
