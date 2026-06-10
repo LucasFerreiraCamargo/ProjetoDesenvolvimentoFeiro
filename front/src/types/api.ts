@@ -53,6 +53,12 @@ export type CategoriaCesta =
   | "FESTA"
   | "OUTRA";
 
+/** Status do ciclo de vida de uma rota de entrega. */
+export type StatusRota = "RASCUNHO" | "INICIADA" | "FINALIZADA" | "CANCELADA";
+
+/** Status de cada parada (pedido) dentro de uma rota. */
+export type StatusParada = "PENDENTE" | "ENTREGUE" | "FALHA";
+
 export type StatusAberto = "Aberto" | "Fechado";
 
 /** Decimal do Prisma chega como string no JSON, mas pode vir number também. */
@@ -189,6 +195,61 @@ export interface Pedido {
   usuario_id: string;
   adminId?: string | null;
   items?: PedidoItem[];
+}
+
+// ────────── Rotas de entrega (Spoke-like) ──────────
+
+export interface Entregador {
+  id: number;
+  nome: string;
+  email?: string | null;
+  telefone: string;
+  veiculo?: string | null;
+  placa?: string | null;
+  ativo: boolean;
+  feirante_id?: number | null;
+  /** Presente quando a rota inclui o feirante. */
+  feirante?: { id: number; nome: string; banca?: string | null };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RotaPedido {
+  id: number;
+  rota_id: number;
+  pedido_id: number;
+  ordem: number;
+  status_parada: StatusParada;
+  completed_at?: string | null;
+  observacao?: string | null;
+  /** Presente quando a rota faz include do pedido. */
+  pedido?: Pedido & {
+    usuario?: Pick<
+      Usuario,
+      "id" | "nome" | "telefone" | "endereco" | "numero" | "bairro" | "cidade" | "latitude" | "longitude"
+    >;
+  };
+}
+
+export interface Rota {
+  id: number;
+  nome?: string | null;
+  status: StatusRota;
+  origem_latitude?: number | null;
+  origem_longitude?: number | null;
+  origem_endereco?: string | null;
+  foi_otimizada: boolean;
+  data_inicio?: string | null;
+  data_fim?: string | null;
+  entregador_id: number;
+  /** Presente quando a rota inclui o entregador. */
+  entregador?: Pick<Entregador, "id" | "nome" | "telefone" | "veiculo" | "placa">;
+  /** Paradas ordenadas pela `ordem`. */
+  paradas?: RotaPedido[];
+  /** Quando a rota só vem com contagem (lista). */
+  _count?: { paradas: number };
+  createdAt: string;
+  updatedAt: string;
 }
 
 // ────────── Erros padronizados da API ──────────

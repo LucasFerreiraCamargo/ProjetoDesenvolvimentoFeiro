@@ -26,18 +26,27 @@ export interface ItemCesta {
 interface CestaState {
   itens: ItemCesta[];
   total: number;
+  /**
+   * Id da cesta recorrente criada NESTA sessão de carrinho (ou null se
+   * ainda não foi criada). Resetado ao limpar o carrinho.
+   * Usado para travar o card "Tornar cesta recorrente" em telas posteriores
+   * (ex: tela de finalização) quando o usuário já marcou no carrinho.
+   */
+  cestaRecorrenteId: number | null;
 }
 
 type CestaAction =
   | { type: "ADD_ITEM"; payload: ItemCesta }
   | { type: "REMOVE_ITEM"; payload: string } // remove por id
   | { type: "UPDATE_QUANTITY"; payload: { id: string; quantidade: number } }
+  | { type: "SET_CESTA_RECORRENTE"; payload: number | null }
   | { type: "CLEAR_CESTA" };
 
 // Estado inicial
 const initialState: CestaState = {
   itens: [],
   total: 0,
+  cestaRecorrenteId: null,
 };
 
 // Função para calcular total
@@ -99,16 +108,18 @@ function cestaReducer(state: CestaState, action: CestaAction): CestaState {
       return newState;
     }
 
-    case "REMOVE_ITEM":
+    case "REMOVE_ITEM": {
       const filteredItens = state.itens.filter(
         (item) => item.id !== action.payload
       );
       return {
+        ...state,
         itens: filteredItens,
         total: calcularTotal(filteredItens),
       };
+    }
 
-    case "UPDATE_QUANTITY":
+    case "UPDATE_QUANTITY": {
       const updatedItens = state.itens
         .map((item) =>
           item.id === action.payload.id
@@ -118,14 +129,20 @@ function cestaReducer(state: CestaState, action: CestaAction): CestaState {
         .filter((item) => item.quantidade > 0); // Remove itens com quantidade 0
 
       return {
+        ...state,
         itens: updatedItens,
         total: calcularTotal(updatedItens),
       };
+    }
+
+    case "SET_CESTA_RECORRENTE":
+      return { ...state, cestaRecorrenteId: action.payload };
 
     case "CLEAR_CESTA":
       return {
         itens: [],
         total: 0,
+        cestaRecorrenteId: null,
       };
 
     default:
@@ -157,6 +174,10 @@ const CestaContext = createContext<
       atualizarQuantidade: (id: string, quantidade: number) => void;
       limparCesta: () => void;
       getTotalItens: () => number;
+      /** Registra que uma cesta recorrente foi criada para o carrinho atual. */
+      marcarCestaRecorrenteCriada: (cestaRecorrenteId: number) => void;
+      /** Limpa a marcação (ex: ao iniciar um novo fluxo). */
+      resetarCestaRecorrente: () => void;
     }
   | undefined
 >(undefined);
@@ -211,6 +232,14 @@ export const CestaProvider: React.FC<{ children: ReactNode }> = ({
     return state.itens.length;
   };
 
+  const marcarCestaRecorrenteCriada = (cestaRecorrenteId: number) => {
+    dispatch({ type: "SET_CESTA_RECORRENTE", payload: cestaRecorrenteId });
+  };
+
+  const resetarCestaRecorrente = () => {
+    dispatch({ type: "SET_CESTA_RECORRENTE", payload: null });
+  };
+
   const adicionarCesta = (cestaData: {
     cestaId: string;
     nome: string;
@@ -259,6 +288,8 @@ export const CestaProvider: React.FC<{ children: ReactNode }> = ({
     atualizarQuantidade,
     limparCesta,
     getTotalItens,
+    marcarCestaRecorrenteCriada,
+    resetarCestaRecorrente,
   };
 
   return (

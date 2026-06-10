@@ -11,6 +11,7 @@ import {
 } from "react-native";
 
 import { ItemCesta, useCesta } from "../../contexts/CestaContext";
+import CardRecorrente from "../../components/CardRecorrente";
 
 // Fotos do Unsplash para produtos
 const produtoImages: { [key: string]: string } = {
@@ -198,7 +199,6 @@ export default function CestaScreen() {
     getTotalItens,
     adicionarItem,
   } = useCesta();
-  const [recorrente, setRecorrente] = React.useState(false);
 
   const handleQuantityChange = (id: string, newQuantity: number) => {
     if (newQuantity <= 0) {
@@ -303,37 +303,9 @@ export default function CestaScreen() {
           />
         ))}
 
-        {/* Opção de Cesta Recorrente - Movida para depois dos produtos */}
+        {/* Opção de Cesta Recorrente — funcional, persiste via API */}
         <View style={styles.recorrenteContainer}>
-          <TouchableOpacity
-            style={styles.recorrenteRow}
-            onPress={() => {
-              if (!recorrente) {
-                // Quando marca para recorrente, navegar para configuração
-                console.log("Navegando para página de cesta recorrente...");
-                router.push("/recorrente");
-              } else {
-                // Se já estava marcado, apenas desmarcar
-                setRecorrente(false);
-              }
-            }}
-          >
-            <View
-              style={[styles.checkbox, recorrente && styles.checkboxSelected]}
-            >
-              {recorrente && (
-                <Ionicons name="checkmark" size={14} color="#FFFFFF" />
-              )}
-            </View>
-            <View style={styles.recorrenteText}>
-              <Text style={styles.recorrenteTitle}>
-                Tornar cesta recorrente
-              </Text>
-              <Text style={styles.recorrenteSubtitle}>
-                Receba estes itens automaticamente
-              </Text>
-            </View>
-          </TouchableOpacity>
+          <CardRecorrente />
         </View>
 
         <View style={styles.navSpacer} />

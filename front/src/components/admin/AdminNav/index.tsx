@@ -9,21 +9,25 @@ import styles from './styles'
 // Convenção: 1=Cliente, 2=Feirante, 3=Superadmin
 // (Cliente nem deveria entrar na área admin — o useAdminGuard já bloqueia.)
 
-// Menu do Feirante (nivel 2): gerencia o próprio catálogo e pedidos.
+// Menu do Feirante (nivel 2): gerencia o próprio catálogo, pedidos, entregadores e rotas.
 const navFeirante = [
   { name: 'Painel', icon: 'grid', route: '/admin/dashboard' },
+  { name: 'Pedidos', icon: 'receipt', route: '/admin/pedidos' },
+  { name: 'Rotas', icon: 'map', route: '/admin/rotas' },
+  { name: 'Entregadores', icon: 'bicycle', route: '/admin/entregadores' },
   { name: 'Produtos', icon: 'leaf', route: '/admin/mercadorias' },
   { name: 'Cestas', icon: 'basket', route: '/admin/cestas' },
-  { name: 'Pedidos', icon: 'receipt', route: '/admin/pedidos' },
   { name: 'Perfil', icon: 'person', route: '/admin/perfil' },
 ]
 
-// Menu do Superadmin (nivel 3): visão geral + gestão de feirantes/feiras/usuários.
+// Menu do Superadmin (nivel 3): visão geral + gestão de feirantes/feiras/usuários/rotas.
 const navSuperadmin = [
   { name: 'Painel', icon: 'grid', route: '/admin/dashboard' },
-  { name: 'Feirantes', icon: 'storefront', route: '/admin/feirantes' },
-  { name: 'Feiras', icon: 'map', route: '/admin/feiras' },
   { name: 'Pedidos', icon: 'receipt', route: '/admin/pedidos' },
+  { name: 'Rotas', icon: 'map', route: '/admin/rotas' },
+  { name: 'Entregadores', icon: 'bicycle', route: '/admin/entregadores' },
+  { name: 'Feirantes', icon: 'storefront', route: '/admin/feirantes' },
+  { name: 'Feiras', icon: 'location', route: '/admin/feiras' },
   { name: 'Usuários', icon: 'people', route: '/admin/usuarios' },
 ]
 

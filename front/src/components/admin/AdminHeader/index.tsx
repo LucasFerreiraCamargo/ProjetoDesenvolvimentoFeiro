@@ -78,7 +78,8 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ titulo }) => {
             onPress={() => {
               setMenuAberto(false)
               logout()
-              router.replace('/admin/login')
+              // Sai pra tela de login normal — sem ir pra splash nem pra login específico do admin
+              router.replace('/login')
             }}
           >
             <Ionicons name="log-out-outline" size={18} color="#FF5722" />

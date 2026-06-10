@@ -15,6 +15,7 @@ import {
 
 import { ItemCesta, useCesta } from "../../contexts/CestaContext";
 import { useUser } from "../../contexts/UserContext";
+import CardRecorrente from "../../components/CardRecorrente";
 
 const API_BASE =
   (process.env.EXPO_PUBLIC_API_URL as string) || "http://localhost:3001";
@@ -38,7 +39,6 @@ const FinalizaPedido = () => {
   const [validadeCartao, setValidadeCartao] = useState("");
   const [cvvCartao, setCvvCartao] = useState("");
   const [trocoDinheiro, setTrocoDinheiro] = useState("");
-  const [recorrente, setRecorrente] = useState(false);
   const [aceitouTermos, setAceitouTermos] = useState(false);
   const [endereco, setEndereco] = useState({
     rua: "Rua das Flores",
@@ -625,31 +625,11 @@ const FinalizaPedido = () => {
           )}
         </View>
 
-        {/* Tornar cesta recorrente */}
-        <TouchableOpacity
-          style={styles.checkboxCard}
-          onPress={() => {
-            if (!recorrente) {
-              // Quando marca para recorrente, navegar para configuração
-              router.push("/recorrente?nova=true");
-            } else {
-              // Se já estava marcado, apenas desmarcar
-              setRecorrente(false);
-            }
-          }}
-        >
-          <View
-            style={[styles.checkbox, recorrente && styles.checkboxSelected]}
-          >
-            {recorrente && <View style={styles.checkboxDot} />}
-          </View>
-          <View style={styles.checkboxTexto}>
-            <Text style={styles.checkboxTitle}>Tornar cesta recorrente</Text>
-            <Text style={styles.checkboxSubtitle}>
-              Receba estes itens automaticamente toda semana
-            </Text>
-          </View>
-        </TouchableOpacity>
+        {/* Tornar cesta recorrente — vem marcado se o usuário já configurou
+            no carrinho. Caso contrário, abre o modal aqui também. */}
+        <View style={styles.checkboxCard}>
+          <CardRecorrente />
+        </View>
 
         {/* Aceitar termos */}
         <TouchableOpacity

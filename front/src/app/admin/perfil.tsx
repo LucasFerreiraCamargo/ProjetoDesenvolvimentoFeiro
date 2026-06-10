@@ -81,7 +81,8 @@ export default function AdminPerfil() {
 
   function sair() {
     logout()
-    router.replace('/admin/login')
+    // Vai pra tela de login do cliente — admin pode logar de novo a partir dali.
+    router.replace('/login')
   }
 
   if (loading) {
@@ -386,6 +387,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF3F3',
     borderRadius: 12,
     padding: 16,
+    borderWidth: 1,
+    borderColor: '#FFE0E0',
+    gap: 8,
+  },
+  sairButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 16,
+    marginTop: 8,
     borderWidth: 1,
     borderColor: '#FFE0E0',
     gap: 8,
