@@ -80,15 +80,25 @@ export default function NovaRota() {
         if (cancelado) return
         const mapeados: PedidoSelecionado[] = resultados
           .filter((p) => p && p.id)
-          .map((p: any) => ({
-            id: Number(p.id),
-            cliente: p.usuario?.nome ?? `Cliente #${p.usuario_id ?? p.id}`,
-            endereco: [p.usuario?.endereco, p.usuario?.numero]
-              .filter(Boolean)
-              .join(', ') || 'Sem endereço cadastrado',
-            bairro: p.usuario?.bairro || undefined,
-            valor: Number(p.valor_total ?? p.total ?? 0),
-          }))
+          .map((p: any) => {
+            // Endereço de entrega vem do endereço PRINCIPAL do cliente.
+            const endPrincipal =
+              Array.isArray(p.usuario?.enderecos)
+                ? p.usuario.enderecos.find((e: any) => e.principal) ??
+                  p.usuario.enderecos[0]
+                : null
+            return {
+              id: Number(p.id),
+              cliente: p.usuario?.nome ?? `Cliente #${p.usuario_id ?? p.id}`,
+              endereco: endPrincipal
+                ? [endPrincipal.endereco, endPrincipal.numero]
+                    .filter(Boolean)
+                    .join(', ') || 'Sem endereço cadastrado'
+                : 'Sem endereço cadastrado',
+              bairro: endPrincipal?.bairro || undefined,
+              valor: Number(p.valor_total ?? p.total ?? 0),
+            }
+          })
         setPedidos(mapeados)
       } catch (e: any) {
         Alert.alert('Erro', e?.message ?? 'Falha ao carregar detalhes dos pedidos')

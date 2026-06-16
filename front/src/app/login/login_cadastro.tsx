@@ -21,17 +21,21 @@ export default function RegisterScreen() {
 
   const handleRegister = async () => {
     try {
+      // Endereço é tratado como sub-objeto `endereco_inicial` — o backend
+      // cria o Usuario e o EnderecoUsuario "Casa" (principal) em uma única
+      // transação. Se o cliente não preencher endereço, cadastra só o user
+      // e ele adiciona depois em /perfil/enderecos.
+      const payload: any = { nome, email, senha, telefone };
+      if (endereco.trim() && bairro.trim()) {
+        payload.endereco_inicial = {
+          endereco: endereco.trim(),
+          bairro: bairro.trim(),
+        };
+      }
       const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/usuarios`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nome,
-          email,
-          senha,
-          telefone,
-          endereco,
-          bairro,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();

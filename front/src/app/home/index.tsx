@@ -373,7 +373,7 @@ function mapCestaParaCard(c: any) {
 // --- Tela Principal ---
 export default function HomeScreen() {
   const { state, getAllProdutos } = useApp();
-  const { user } = useUser();
+  const { user, enderecoAtual } = useUser();
 
   // Produtos reais da API (substitui o mock para "Promoções do Dia")
   const [produtosApi, setProdutosApi] = useState<any[]>([]);
@@ -385,9 +385,9 @@ export default function HomeScreen() {
   const [cestasApi, setCestasApi] = useState<any[]>([]);
   const [loadingCestas, setLoadingCestas] = useState(true);
 
-  // Cliente é "geolocalizável" se tem latitude e longitude válidas
+  // Cliente é "geolocalizável" quando o endereço selecionado tem coords.
   const clienteTemCoordenadas =
-    user?.latitude != null && user?.longitude != null;
+    enderecoAtual?.latitude != null && enderecoAtual?.longitude != null;
 
   useEffect(() => {
     let cancelado = false;
@@ -395,14 +395,12 @@ export default function HomeScreen() {
       try {
         const lista = await mercadoriasService.listar();
 
-        // Filtro 1: estoque suficiente para venda
-        // Filtro 2: o feirante atende a região do cliente (se cliente tem coords)
         const disponiveis = lista
           .filter(estaDisponivelParaVenda)
           .filter((m: Mercadoria) =>
             feiranteAtendeCliente(m?.feirante, {
-              latitude: user?.latitude ?? null,
-              longitude: user?.longitude ?? null,
+              latitude: enderecoAtual?.latitude ?? null,
+              longitude: enderecoAtual?.longitude ?? null,
             })
           )
           .map(mapMercadoriaParaCard);
@@ -422,12 +420,11 @@ export default function HomeScreen() {
       try {
         const lista = await cestasService.listar();
         if (!cancelado) {
-          // Mesmo filtro de proximidade aplicado às cestas
           const mapeadas = lista
             .filter((c: Cesta) =>
               feiranteAtendeCliente(c?.feirante, {
-                latitude: user?.latitude ?? null,
-                longitude: user?.longitude ?? null,
+                latitude: enderecoAtual?.latitude ?? null,
+                longitude: enderecoAtual?.longitude ?? null,
               })
             )
             .map(mapCestaParaCard)
@@ -447,9 +444,9 @@ export default function HomeScreen() {
     return () => {
       cancelado = true;
     };
-    // Re-roda quando as coordenadas do cliente mudam (ex.: ele atualizou endereço)
+    // Re-roda quando o endereço selecionado muda (ex.: trocou no dropdown)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.latitude, user?.longitude]);
+  }, [enderecoAtual?.latitude, enderecoAtual?.longitude]);
 
   // Verificar se o context está carregado
   if (!state || !state.feiras) {

@@ -27,12 +27,20 @@ interface PedidoApi {
   usuario?: {
     nome?: string;
     telefone?: string;
-    endereco?: string;
-    numero?: string | null;
-    bairro?: string;
-    cidade?: string | null;
-    uf?: string | null;
-    cep?: string | null;
+    // Endereços do cliente (modelo iFood). O principal é o que aparece
+    // como endereço de entrega.
+    enderecos?: {
+      id: number;
+      label: string;
+      endereco: string;
+      numero?: string | null;
+      complemento?: string | null;
+      bairro: string;
+      cidade?: string | null;
+      uf?: string | null;
+      cep?: string | null;
+      principal: boolean;
+    }[];
   };
   items?: any[];
 }
@@ -154,10 +162,16 @@ function formatHora(d?: string) {
 }
 
 function montarEnderecoTexto(p: PedidoApi["usuario"]): string {
-  if (!p) return "Endereço não cadastrado";
-  const rua = [p.endereco, p.numero].filter(Boolean).join(", ");
-  const cidadeUf = [p.cidade, p.uf].filter(Boolean).join(" - ");
-  return [rua, p.bairro, cidadeUf].filter(Boolean).join(" · ") || "Endereço não cadastrado";
+  if (!p?.enderecos || p.enderecos.length === 0)
+    return "Endereço não cadastrado";
+  // Usa o endereço principal — fallback pro primeiro se não houver.
+  const end = p.enderecos.find((e) => e.principal) ?? p.enderecos[0];
+  const rua = [end.endereco, end.numero].filter(Boolean).join(", ");
+  const cidadeUf = [end.cidade, end.uf].filter(Boolean).join(" - ");
+  return (
+    [rua, end.bairro, cidadeUf].filter(Boolean).join(" · ") ||
+    "Endereço não cadastrado"
+  );
 }
 
 export default function AcompanharPedidoScreen() {

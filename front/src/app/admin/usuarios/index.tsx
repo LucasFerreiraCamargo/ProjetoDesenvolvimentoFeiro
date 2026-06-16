@@ -97,8 +97,7 @@ export default function Usuarios() {
                   <Text style={styles.nome}>{item.nome}</Text>
                   <Text style={styles.email}>{item.email}</Text>
                   <Text style={styles.sub}>
-                    {item.telefone ? `${item.telefone} · ` : ''}
-                    {item.bairro ?? item.endereco ?? ''}
+                    {item.telefone ? item.telefone : ''}
                   </Text>
                   <Text style={styles.data}>
                     Cadastrado: {formatarData(item.created_at ?? item.membro_desde)}

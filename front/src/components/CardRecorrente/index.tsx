@@ -17,17 +17,25 @@ import {
 import { useCesta } from "../../contexts/CestaContext";
 import { useUser } from "../../contexts/UserContext";
 import { cestasRecorrentesService } from "../../services/cestasRecorrentes";
+import { horariosService } from "../../services/horarios";
+import type { HorarioFeirante } from "../../types/api";
 import { styles } from "./styles";
 
 const FREQUENCIAS = ["Semanal", "Quinzenal", "Mensal"] as const;
-const DIAS_SEMANA = [
-  "Segunda-feira",
-  "Terça-feira",
-  "Quarta-feira",
-  "Quinta-feira",
-  "Sexta-feira",
-  "Sábado",
-  "Domingo",
+
+/**
+ * Mapeamento dia da semana ↔ índice da API (Prisma).
+ * API: 0=Domingo ... 6=Sábado.
+ * Componente: começa em Segunda para melhor UX.
+ */
+const DIAS_SEMANA: { label: string; idx: number }[] = [
+  { label: "Segunda-feira", idx: 1 },
+  { label: "Terça-feira", idx: 2 },
+  { label: "Quarta-feira", idx: 3 },
+  { label: "Quinta-feira", idx: 4 },
+  { label: "Sexta-feira", idx: 5 },
+  { label: "Sábado", idx: 6 },
+  { label: "Domingo", idx: 0 },
 ];
 
 /**
@@ -36,6 +44,9 @@ const DIAS_SEMANA = [
  * Quando o usuário toca, abre um modal que pede nome / frequência / dia,
  * e ao confirmar faz POST /cestas-recorrentes — persistindo a cesta no
  * banco vinculada ao usuário e feirante atual.
+ *
+ * Ao abrir o modal, busca os horários de ENTREGA do feirante e desabilita
+ * os dias em que ele não faz entrega.
  */
 const CardRecorrente: React.FC = () => {
   const { user } = useUser();
@@ -46,6 +57,10 @@ const CardRecorrente: React.FC = () => {
   const [frequencia, setFrequencia] = React.useState<string>("Semanal");
   const [diaEntrega, setDiaEntrega] = React.useState<string>("Segunda-feira");
   const [enviando, setEnviando] = React.useState(false);
+
+  // Horários de entrega do feirante (carregados ao abrir o modal)
+  const [horariosEntrega, setHorariosEntrega] = React.useState<HorarioFeirante[]>([]);
+  const [carregandoHorarios, setCarregandoHorarios] = React.useState(false);
 
   // "criada" vem do CestaContext: id != null => já foi tornada recorrente
   // nesta sessão do carrinho. Trava o clique e marca visualmente.
@@ -83,6 +98,60 @@ const CardRecorrente: React.FC = () => {
       .map((it) => Number(it.produtoId))
       .filter((id) => Number.isFinite(id) && id > 0);
   }, [itensRecorrentes]);
+
+  // Set com os índices (0-6) dos dias em que o feirante faz entrega.
+  const diasDisponiveis = React.useMemo(() => {
+    const set = new Set<number>();
+    horariosEntrega.forEach((h) => set.add(h.dia_semana));
+    return set;
+  }, [horariosEntrega]);
+
+  // Janelas de horário agrupadas por dia_semana (string formatada)
+  const janelasPorDia = React.useMemo(() => {
+    const map = new Map<number, string[]>();
+    horariosEntrega.forEach((h) => {
+      const arr = map.get(h.dia_semana) ?? [];
+      arr.push(`${h.hora_inicio} às ${h.hora_fim}`);
+      map.set(h.dia_semana, arr);
+    });
+    return map;
+  }, [horariosEntrega]);
+
+  // Carrega horários de entrega quando o modal abre
+  React.useEffect(() => {
+    if (!modalVisivel || feiranteId == null) return;
+    let ativo = true;
+    setCarregandoHorarios(true);
+    horariosService
+      .listarPorFeirante(feiranteId, "ENTREGA")
+      .then((lista) => {
+        if (!ativo) return;
+        setHorariosEntrega(lista);
+      })
+      .catch(() => {
+        if (!ativo) return;
+        setHorariosEntrega([]);
+      })
+      .finally(() => {
+        if (ativo) setCarregandoHorarios(false);
+      });
+    return () => {
+      ativo = false;
+    };
+  }, [modalVisivel, feiranteId]);
+
+  // Se o dia selecionado deixar de estar disponível, troca automaticamente
+  // para o primeiro dia disponível.
+  React.useEffect(() => {
+    if (carregandoHorarios || diasDisponiveis.size === 0) return;
+    const diaAtual = DIAS_SEMANA.find((d) => d.label === diaEntrega);
+    if (!diaAtual || !diasDisponiveis.has(diaAtual.idx)) {
+      const primeiroDisponivel = DIAS_SEMANA.find((d) =>
+        diasDisponiveis.has(d.idx),
+      );
+      if (primeiroDisponivel) setDiaEntrega(primeiroDisponivel.label);
+    }
+  }, [diasDisponiveis, carregandoHorarios, diaEntrega]);
 
   function abrir() {
     // Já criou? Mostra aviso e não permite reabrir o modal — bloqueio simples.
@@ -151,6 +220,19 @@ const CardRecorrente: React.FC = () => {
       Alert.alert("Preço inválido", "O total da cesta precisa ser maior que zero.");
       return;
     }
+    // Validação extra: dia precisa estar entre os dias de entrega configurados
+    // (ignorada quando o feirante não definiu nenhum horário — backend aceita
+    // qualquer dia nesse caso, comportamento atual do app).
+    if (diasDisponiveis.size > 0) {
+      const diaAtual = DIAS_SEMANA.find((d) => d.label === diaEntrega);
+      if (!diaAtual || !diasDisponiveis.has(diaAtual.idx)) {
+        Alert.alert(
+          "Dia indisponível",
+          "Este feirante não faz entrega no dia selecionado. Escolha outro dia.",
+        );
+        return;
+      }
+    }
 
     setEnviando(true);
     try {
@@ -189,6 +271,18 @@ const CardRecorrente: React.FC = () => {
       setEnviando(false);
     }
   }
+
+  // Janela de horário do dia atualmente selecionado (mostrada abaixo dos chips)
+  const janelaDiaSelecionado = React.useMemo(() => {
+    const diaAtual = DIAS_SEMANA.find((d) => d.label === diaEntrega);
+    if (!diaAtual) return null;
+    const janelas = janelasPorDia.get(diaAtual.idx);
+    if (!janelas || janelas.length === 0) return null;
+    return janelas.join(" e ");
+  }, [diaEntrega, janelasPorDia]);
+
+  const semHorariosCadastrados =
+    !carregandoHorarios && horariosEntrega.length === 0;
 
   return (
     <View style={styles.section}>
@@ -276,27 +370,67 @@ const CardRecorrente: React.FC = () => {
 
               {/* Dia da entrega */}
               <Text style={modalStyles.label}>Dia da entrega</Text>
+
+              {carregandoHorarios && (
+                <View style={modalStyles.carregandoBox}>
+                  <ActivityIndicator color="#4A7C59" size="small" />
+                  <Text style={modalStyles.carregandoTexto}>
+                    Verificando dias de entrega do feirante...
+                  </Text>
+                </View>
+              )}
+
+              {semHorariosCadastrados && (
+                <View style={modalStyles.alertaBox}>
+                  <Ionicons name="information-circle" size={18} color="#A66A00" />
+                  <Text style={modalStyles.alertaTexto}>
+                    Este feirante ainda não cadastrou os dias de entrega.
+                    Você pode escolher qualquer dia, mas confirme com ele antes.
+                  </Text>
+                </View>
+              )}
+
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={modalStyles.chipsRow}>
-                  {DIAS_SEMANA.map((d) => (
-                    <TouchableOpacity
-                      key={d}
-                      style={[modalStyles.chip, diaEntrega === d && modalStyles.chipAtivo]}
-                      onPress={() => setDiaEntrega(d)}
-                      disabled={enviando}
-                    >
-                      <Text
+                  {DIAS_SEMANA.map((d) => {
+                    const indisponivel =
+                      diasDisponiveis.size > 0 && !diasDisponiveis.has(d.idx);
+                    const ativo = diaEntrega === d.label;
+                    return (
+                      <TouchableOpacity
+                        key={d.label}
                         style={[
-                          modalStyles.chipText,
-                          diaEntrega === d && modalStyles.chipTextAtivo,
+                          modalStyles.chip,
+                          ativo && modalStyles.chipAtivo,
+                          indisponivel && modalStyles.chipIndisponivel,
                         ]}
+                        onPress={() => !indisponivel && setDiaEntrega(d.label)}
+                        disabled={enviando || indisponivel}
                       >
-                        {d.replace("-feira", "")}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                        <Text
+                          style={[
+                            modalStyles.chipText,
+                            ativo && modalStyles.chipTextAtivo,
+                            indisponivel && modalStyles.chipTextIndisponivel,
+                          ]}
+                        >
+                          {d.label.replace("-feira", "")}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </ScrollView>
+
+              {/* Janela de horário do dia selecionado */}
+              {janelaDiaSelecionado && (
+                <View style={modalStyles.janelaBox}>
+                  <Ionicons name="time-outline" size={16} color="#4A7C59" />
+                  <Text style={modalStyles.janelaTexto}>
+                    Entrega: {janelaDiaSelecionado}
+                  </Text>
+                </View>
+              )}
 
               {/* Botão criar */}
               <TouchableOpacity
@@ -391,8 +525,51 @@ const modalStyles = StyleSheet.create({
     backgroundColor: "#FFF",
   },
   chipAtivo: { backgroundColor: "#255336" },
+  chipIndisponivel: {
+    borderColor: "#DDD",
+    backgroundColor: "#F5F5F5",
+  },
   chipText: { fontSize: 12, color: "#255336", fontWeight: "600" },
   chipTextAtivo: { color: "#FFF" },
+  chipTextIndisponivel: { color: "#AAA", textDecorationLine: "line-through" },
+
+  carregandoBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  carregandoTexto: { fontSize: 12, color: "#666" },
+
+  alertaBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "#FFF8E6",
+    borderWidth: 1,
+    borderColor: "#F2D88D",
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+  },
+  alertaTexto: { flex: 1, fontSize: 12, color: "#7A4F00", lineHeight: 16 },
+
+  janelaBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#F0F8F4",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 14,
+  },
+  janelaTexto: {
+    fontSize: 12,
+    color: "#255336",
+    fontFamily: "Poppins-SemiBold",
+  },
 
   botaoCriar: {
     backgroundColor: "#4A7C59",

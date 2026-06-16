@@ -1,7 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import { router } from "expo-router";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -22,7 +21,9 @@ const API_BASE =
 
 const FinalizaPedido = () => {
   const { state: cestaState, limparCesta } = useCesta();
-  const { user } = useUser();
+  // `enderecoAtual` reflete o endereço selecionado no header (Modelo iFood).
+  // Quando o cliente troca pelo dropdown, esta tela atualiza junto.
+  const { user, enderecoAtual } = useUser();
   const [enviandoPedido, setEnviandoPedido] = useState(false);
   const [tipoEntrega, setTipoEntrega] = useState<"endereco" | "feira">(
     "endereco"
@@ -40,35 +41,6 @@ const FinalizaPedido = () => {
   const [cvvCartao, setCvvCartao] = useState("");
   const [trocoDinheiro, setTrocoDinheiro] = useState("");
   const [aceitouTermos, setAceitouTermos] = useState(false);
-  const [endereco, setEndereco] = useState({
-    rua: "Rua das Flores",
-    numero: "123",
-    bairro: "Jardim Primavera",
-    cidade: "São Paulo",
-    estado: "SP",
-  });
-
-  useEffect(() => {
-    carregarEndereco();
-  }, []);
-
-  const carregarEndereco = async () => {
-    try {
-      const enderecoSalvo = await AsyncStorage.getItem("endereco_usuario");
-      if (enderecoSalvo) {
-        const enderecoData = JSON.parse(enderecoSalvo);
-        setEndereco({
-          rua: enderecoData.rua,
-          numero: enderecoData.numero,
-          bairro: enderecoData.bairro,
-          cidade: enderecoData.cidade,
-          estado: enderecoData.estado,
-        });
-      }
-    } catch (error) {
-      console.log("Erro ao carregar endereço:", error);
-    }
-  };
 
   const calcularSubtotal = () => {
     return cestaState.itens.reduce((total, item) => {
@@ -160,17 +132,24 @@ const FinalizaPedido = () => {
       return;
     }
 
-    // Validar endereço se entrega for no endereço
+    // Validar endereço se entrega for no endereço.
+    // Exige que o cliente tenha um endereço selecionado no header (modelo iFood).
     if (tipoEntrega === "endereco") {
       if (
-        !endereco.rua ||
-        !endereco.numero ||
-        !endereco.bairro ||
-        !endereco.cidade
+        !enderecoAtual ||
+        !enderecoAtual.endereco ||
+        !enderecoAtual.bairro
       ) {
         Alert.alert(
-          "Atenção",
-          "Complete as informações do endereço de entrega."
+          "Selecione um endereço",
+          "Você precisa ter um endereço cadastrado para receber a entrega. Cadastre em 'Meus endereços'.",
+          [
+            { text: "Cancelar", style: "cancel" },
+            {
+              text: "Cadastrar agora",
+              onPress: () => router.push("/perfil/enderecos/index"),
+            },
+          ],
         );
         return;
       }
@@ -314,12 +293,6 @@ const FinalizaPedido = () => {
     return numero;
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      carregarEndereco();
-    }, [])
-  );
-
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -400,13 +373,39 @@ const FinalizaPedido = () => {
               )}
             </View>
             <View style={styles.radioContent}>
-              <Text style={styles.radioTitle}>Entregar no meu endereço</Text>
-              <Text style={styles.radioSubtitle}>
-                {endereco.rua}, {endereco.numero} - {endereco.bairro},{" "}
-                {endereco.cidade}/{endereco.estado}
+              <Text style={styles.radioTitle}>
+                {enderecoAtual
+                  ? `Entregar em "${enderecoAtual.label}"`
+                  : "Entregar no meu endereço"}
               </Text>
-              <TouchableOpacity onPress={() => router.push("/edita-endereco")}>
-                <Text style={styles.editarLink}>Editar endereço</Text>
+              {enderecoAtual ? (
+                <Text style={styles.radioSubtitle}>
+                  {enderecoAtual.endereco}
+                  {enderecoAtual.numero ? `, ${enderecoAtual.numero}` : ""}
+                  {enderecoAtual.bairro ? ` - ${enderecoAtual.bairro}` : ""}
+                  {enderecoAtual.cidade ? `, ${enderecoAtual.cidade}` : ""}
+                  {enderecoAtual.uf ? `/${enderecoAtual.uf}` : ""}
+                </Text>
+              ) : (
+                <Text style={[styles.radioSubtitle, { fontStyle: "italic" }]}>
+                  Nenhum endereço cadastrado. Cadastre em "Meus endereços".
+                </Text>
+              )}
+              <TouchableOpacity
+                onPress={() =>
+                  enderecoAtual
+                    ? router.push({
+                        pathname: "/perfil/enderecos/index",
+                        params: { selecionado: String(enderecoAtual.id) },
+                      })
+                    : router.push("/perfil/enderecos/index")
+                }
+              >
+                <Text style={styles.editarLink}>
+                  {enderecoAtual
+                    ? "Trocar endereço"
+                    : "Cadastrar endereço"}
+                </Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>

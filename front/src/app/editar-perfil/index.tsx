@@ -18,7 +18,6 @@ export default function EditarPerfil() {
   const [nome, setNome] = useState(user?.nome || "");
   const [email, setEmail] = useState(user?.email || "");
   const [telefone, setTelefone] = useState(user?.telefone || "");
-  const [endereco, setEndereco] = useState(user?.endereco || "");
   const [avatar, setAvatar] = useState<string | null | undefined>(user?.avatar || null);
   const [saving, setSaving] = useState(false);
 
@@ -50,7 +49,7 @@ export default function EditarPerfil() {
     }
     setSaving(true);
     try {
-      await updateUser({ nome, email, telefone, endereco, avatar });
+      await updateUser({ nome, email, telefone, avatar });
       Alert.alert("Sucesso", "Perfil atualizado com sucesso.");
       router.back();
     } catch (e) {
@@ -90,8 +89,15 @@ export default function EditarPerfil() {
         <Text style={styles.label}>Telefone</Text>
         <TextInput style={styles.input} value={telefone} onChangeText={setTelefone} />
 
-        <Text style={styles.label}>Endereço</Text>
-        <TextInput style={styles.input} value={endereco} onChangeText={setEndereco} />
+        {/* Endereço é gerenciado em /perfil/enderecos (múltiplos endereços) */}
+        <TouchableOpacity
+          style={styles.linkEnderecos}
+          onPress={() => router.push("/perfil/enderecos")}
+        >
+          <Ionicons name="location-outline" size={18} color="#255336" />
+          <Text style={styles.linkEnderecosText}>Gerenciar meus endereços</Text>
+          <Ionicons name="chevron-forward" size={16} color="#999" />
+        </TouchableOpacity>
       </View>
 
       {/* Lista de pedidos do usuário (contagem no título) */}
@@ -147,4 +153,22 @@ const styles = StyleSheet.create({
   pedidoTotal: { fontWeight: '700', color: '#255336' },
   pedidoStatus: { color: '#666', fontSize: 12 },
   noPedidos: { color: '#666', fontStyle: 'italic' },
+  linkEnderecos: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: '#F4FAF5',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#D8E4D8',
+  },
+  linkEnderecosText: {
+    flex: 1,
+    color: '#255336',
+    fontWeight: '600',
+    fontSize: 13,
+  },
 });

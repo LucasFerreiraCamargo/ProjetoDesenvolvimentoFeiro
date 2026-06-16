@@ -16,10 +16,6 @@ import {
 } from "react-native";
 import type { Pedido } from "@/src/contexts/UserContext";
 import { useUser } from "../../contexts/UserContext";
-import type { User } from "../../contexts/UserContext";
-
-const API_BASE =
-  (process.env.EXPO_PUBLIC_API_URL as string) || "http://localhost:3001";
 
 // Formata telefone "11987654321" → "(11) 98765-4321"
 function formataTelefone(tel?: string | null) {
@@ -31,185 +27,44 @@ function formataTelefone(tel?: string | null) {
 }
 
 const PerfilScreen = () => {
-  const { user, loading, logout, updateUser, setUser } = useUser();
+  const {
+    user,
+    loading,
+    logout,
+    updateUser,
+    enderecos,
+    enderecoAtual,
+  } = useUser();
 
-  // ── Estado visual / preferências (local) ──────────────────────────────────
+  // ── Preferências locais ────────────────────────────────────────────────────
   const [notificacoesPush, setNotificacoesPush] = useState(true);
   const [notificacoesEmail, setNotificacoesEmail] = useState(false);
   const [localizacao, setLocalizacao] = useState(true);
 
-  // ── Estado de fetch dos dados completos do usuário ────────────────────────
-  const [fetching, setFetching] = useState(false);
-
-  // ── Estado de edição inline ───────────────────────────────────────────────
+  // ── Edição inline (apenas perfil pessoal — endereço fica em /perfil/enderecos)
   const [editando, setEditando] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
-  // Campos editáveis (espelham o user para edição)
   const [nome, setNome] = useState(user?.nome ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
   const [telefone, setTelefone] = useState(user?.telefone ?? "");
-  const [endereco, setEndereco] = useState(user?.endereco ?? "");
-  const [numero, setNumero] = useState((user as any)?.numero ?? "");
-  const [bairro, setBairro] = useState((user as any)?.bairro ?? "");
-  const [cidade, setCidade] = useState((user as any)?.cidade ?? "");
-  const [estado, setEstado] = useState((user as any)?.estado ?? "");
-  const [uf, setUf] = useState((user as any)?.uf ?? "");
-  const [pais, setPais] = useState((user as any)?.pais ?? "Brasil");
-  const [cep, setCep] = useState((user as any)?.cep ?? "");
   const [avatar, setAvatar] = useState<string | null>(user?.avatar ?? null);
-  const [buscandoCep, setBuscandoCep] = useState(false);
-  const [recalculandoLocal, setRecalculandoLocal] = useState(false);
 
-  // ── Troca de senha (opcional, sub-formulário) ─────────────────────────────
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [novaSenha, setNovaSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
 
-
-  // Quando o user muda (ex: depois do fetch), sincroniza os campos.
+  // Sincroniza estados quando o user muda
   useEffect(() => {
     if (!editando) {
       setNome(user?.nome ?? "");
       setEmail(user?.email ?? "");
       setTelefone(user?.telefone ?? "");
-      setEndereco(user?.endereco ?? "");
-      setNumero((user as any)?.numero ?? "");
-      setBairro((user as any)?.bairro ?? "");
-      setCidade((user as any)?.cidade ?? "");
-      setEstado((user as any)?.estado ?? "");
-      setUf((user as any)?.uf ?? "");
-      setPais((user as any)?.pais ?? "Brasil");
-      setCep((user as any)?.cep ?? "");
       setAvatar(user?.avatar ?? null);
     }
   }, [user, editando]);
 
-  // Busca endereço pelo CEP no ViaCEP e preenche os campos automaticamente
-  async function buscarPeloCep() {
-    const digitos = cep.replace(/\D/g, "");
-    if (digitos.length !== 8) {
-      Alert.alert("CEP inválido", "Informe os 8 dígitos do CEP.");
-      return;
-    }
-    setBuscandoCep(true);
-    try {
-      const res = await fetch(`https://viacep.com.br/ws/${digitos}/json/`);
-      if (!res.ok) throw new Error("Falha na consulta");
-      const data = await res.json();
-      if (data?.erro) {
-        Alert.alert("CEP não encontrado", "Verifique o número digitado.");
-        return;
-      }
-      // Preenche rua e bairro. Não toca em "número" que está dentro do endereço.
-      if (data.logradouro) setEndereco(data.logradouro);
-      if (data.bairro) setBairro(data.bairro);
-      if (data.localidade) setCidade(data.localidade);
-      if (data.uf) setUf(data.uf);
-      if (data.estado) setEstado(data.estado);
-    } catch (e: any) {
-      Alert.alert(
-        "Erro",
-        e?.message ?? "Não foi possível consultar o CEP no ViaCEP."
-      );
-    } finally {
-      setBuscandoCep(false);
-    }
-  }
-
-  // Força um re-geocoding no back-end usando o endereço/CEP que já está no banco
-  async function recalcularLocalizacao() {
-    if (!user?.id || !user?.token) {
-      Alert.alert("Você precisa estar logado");
-      return;
-    }
-    setRecalculandoLocal(true);
-    try {
-      const res = await fetch(
-        `${API_BASE.replace(/\/$/, "")}/usuarios/${user.id}/recalcular-localizacao`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${user.token}`,
-          },
-        }
-      );
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        Alert.alert(
-          "Não foi possível recalcular",
-          (body as any)?.erro ?? `Erro ${res.status}`
-        );
-        return;
-      }
-      const merged: User = {
-        ...(user || {}),
-        ...(body || {}),
-        token: user.token,
-        avatar: user.avatar ?? null,
-      } as User;
-      setUser(merged);
-      if ((body as any)?.geocodificado) {
-        Alert.alert(
-          "Localização atualizada",
-          "Suas coordenadas foram recalculadas. Os produtos da home agora serão filtrados pela sua região."
-        );
-      } else {
-        Alert.alert(
-          "Não foi possível geocodificar",
-          "Não conseguimos converter seu endereço em coordenadas. Tente preencher o CEP, ou um endereço mais completo (com número e bairro)."
-        );
-      }
-    } catch (e: any) {
-      console.warn("[Perfil] recalcular falhou:", e);
-      Alert.alert("Erro", e?.message ?? "Falha de conexão.");
-    } finally {
-      setRecalculandoLocal(false);
-    }
-  }
-
-  // Busca dados frescos do usuário ao abrir a tela — apenas merge local
-  // (sem disparar PUT). Mantém token e avatar locais.
-  async function fetchUserDetails() {
-    if (!user || !user.id) return;
-    setFetching(true);
-    try {
-      const headers: any = {};
-      if (user.token) headers.Authorization = `Bearer ${user.token}`;
-      const res = await fetch(
-        `${API_BASE.replace(/\/$/, "")}/usuarios/${user.id}`,
-        { headers }
-      );
-      if (!res.ok) {
-        console.warn("[Perfil] GET /usuarios/:id erro:", res.status);
-        return;
-      }
-      const full = await res.json();
-      if (full && full.id) {
-        // Sem senha; preserva token e avatar locais.
-        const { senha: _senha, ...semSenha } = full as any;
-        const merged: User = {
-          ...(user || {}),
-          ...semSenha,
-          token: user.token,
-          avatar: user.avatar ?? null,
-        } as User;
-        setUser(merged);
-      }
-    } catch (e) {
-      console.warn("[Perfil] Falha ao buscar dados do usuário:", e);
-    } finally {
-      setFetching(false);
-    }
-  }
-
-  useEffect(() => {
-    fetchUserDetails();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
-
-  // ── Avatar: câmera / galeria ──────────────────────────────────────────────
+  // ── Avatar ──────────────────────────────────────────────────────────────────
   async function tirarFoto() {
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
@@ -262,7 +117,7 @@ const PerfilScreen = () => {
     ]);
   }
 
-  // ── Validação local antes de salvar ───────────────────────────────────────
+  // ── Validação ───────────────────────────────────────────────────────────────
   function validar(): string | null {
     if (!nome.trim() || nome.trim().length < 2) return "Nome muito curto.";
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
@@ -270,13 +125,6 @@ const PerfilScreen = () => {
     const telDigitos = telefone.replace(/\D/g, "");
     if (telefone && !/^\d{10,11}$/.test(telDigitos))
       return "Telefone deve ter 10 ou 11 dígitos (com DDD).";
-    if (endereco && endereco.trim().length < 2)
-      return "Endereço muito curto.";
-    if (bairro && bairro.trim().length < 2) return "Bairro muito curto.";
-    if (cep) {
-      const d = cep.replace(/\D/g, "");
-      if (d.length !== 8) return "CEP deve ter 8 dígitos.";
-    }
     if (mostrarSenha) {
       if (novaSenha.length < 8) return "A senha deve ter no mínimo 8 caracteres.";
       if (!/[A-Z]/.test(novaSenha))
@@ -288,7 +136,6 @@ const PerfilScreen = () => {
     return null;
   }
 
-  // ── Salvar ────────────────────────────────────────────────────────────────
   async function salvar() {
     const erro = validar();
     if (erro) {
@@ -300,19 +147,9 @@ const PerfilScreen = () => {
       const patch: any = {
         nome: nome.trim(),
         email: email.trim(),
-        // Manda só os dígitos do telefone (a API exige /^\d{10,11}$/)
         telefone: telefone.replace(/\D/g, ""),
-        endereco: endereco.trim(),
-        numero: numero.trim(),
-        bairro: bairro.trim(),
-        cidade: cidade.trim(),
-        estado: estado.trim(),
-        uf: uf.trim().toUpperCase(),
-        pais: pais.trim(),
-        avatar, // local apenas (não vai pra API atualmente)
+        avatar,
       };
-      // CEP só vai se preenchido (campo é opcional no Zod)
-      if (cep && cep.trim()) patch.cep = cep.replace(/\D/g, "");
       if (mostrarSenha && novaSenha) patch.senha = novaSenha;
 
       await updateUser(patch);
@@ -326,7 +163,7 @@ const PerfilScreen = () => {
       console.warn("[Perfil.salvar] erro:", e);
       Alert.alert(
         "Não foi possível salvar",
-        e?.message ?? "Tente novamente em alguns segundos."
+        e?.message ?? "Tente novamente em alguns segundos.",
       );
     } finally {
       setSalvando(false);
@@ -334,18 +171,9 @@ const PerfilScreen = () => {
   }
 
   function cancelarEdicao() {
-    // Volta os campos pro estado do user e sai do modo edição
     setNome(user?.nome ?? "");
     setEmail(user?.email ?? "");
     setTelefone(user?.telefone ?? "");
-    setEndereco(user?.endereco ?? "");
-    setNumero((user as any)?.numero ?? "");
-    setBairro((user as any)?.bairro ?? "");
-    setCidade((user as any)?.cidade ?? "");
-    setEstado((user as any)?.estado ?? "");
-    setUf((user as any)?.uf ?? "");
-    setPais((user as any)?.pais ?? "Brasil");
-    setCep((user as any)?.cep ?? "");
     setAvatar(user?.avatar ?? null);
     setMostrarSenha(false);
     setNovaSenha("");
@@ -367,8 +195,7 @@ const PerfilScreen = () => {
     ]);
   }
 
-  // ── Loading inicial ───────────────────────────────────────────────────────
-  if (loading || fetching) {
+  if (loading) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
         <ActivityIndicator size="large" color="#255336" />
@@ -422,7 +249,6 @@ const PerfilScreen = () => {
           </View>
 
           {!editando ? (
-            // ── Modo visualização ──
             <View style={styles.usuarioInfo}>
               <Text style={styles.usuarioNome}>{user?.nome ?? "—"}</Text>
               <Text style={styles.usuarioEmail}>{user?.email ?? "—"}</Text>
@@ -431,50 +257,8 @@ const PerfilScreen = () => {
                   {formataTelefone(user.telefone)}
                 </Text>
               ) : null}
-              {user?.endereco ? (
-                <Text style={styles.usuarioEndereco}>
-                  {user.endereco}
-                  {((user as any)?.numero) ? `, ${(user as any).numero}` : ""}
-                  {(user as any)?.bairro ? ` • ${(user as any).bairro}` : ""}
-                  {(user as any)?.cidade ? ` • ${(user as any).cidade}/${(user as any).uf}` : ""}
-                  {(user as any)?.cep ? ` • CEP ${(user as any).cep}` : ""}
-
-                </Text>
-              ) : null}
-
-              {/* Aviso + botão se o usuário tem endereço mas sem coordenadas */}
-              {user?.endereco && (user?.latitude == null || user?.longitude == null) ? (
-                <View style={styles.avisoLocal}>
-                  <Ionicons
-                    name="alert-circle-outline"
-                    size={18}
-                    color="#92400E"
-                  />
-                  <Text style={styles.avisoLocalTexto}>
-                    Sua localização ainda não foi calculada — os produtos da home
-                    não estão filtrados pela sua região.
-                  </Text>
-                  <TouchableOpacity
-                    style={[
-                      styles.btnRecalcular,
-                      recalculandoLocal && styles.btnDesabilitado,
-                    ]}
-                    onPress={recalcularLocalizacao}
-                    disabled={recalculandoLocal}
-                  >
-                    {recalculandoLocal ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <Text style={styles.btnRecalcularText}>
-                        Recalcular minha localização
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              ) : null}
             </View>
           ) : (
-            // ── Modo edição ──
             <View style={styles.form}>
               <Text style={styles.label}>Nome *</Text>
               <TextInput
@@ -506,105 +290,7 @@ const PerfilScreen = () => {
                 editable={!salvando}
               />
 
-              <Text style={styles.label}>CEP</Text>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <TextInput
-                  style={[styles.input, { flex: 1 }]}
-                  value={cep}
-                  onChangeText={setCep}
-                  placeholder="00000-000"
-                  keyboardType="numeric"
-                  editable={!salvando && !buscandoCep}
-                />
-                <TouchableOpacity
-                  style={[
-                    styles.btnBuscarCep,
-                    (buscandoCep || salvando) && styles.btnDesabilitado,
-                  ]}
-                  onPress={buscarPeloCep}
-                  disabled={buscandoCep || salvando}
-                >
-                  {buscandoCep ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.btnBuscarCepText}>Buscar</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>Estado</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={estado}
-                    onChangeText={setEstado}
-                    placeholder="Ex: Rio Grande do Sul"
-                    editable={!salvando}
-                  />
-                </View>
-
-                <Text style={styles.label}>País</Text>
-                <TextInput
-                  style={styles.input}
-                  value={pais}
-                  onChangeText={setPais}
-                  placeholder="Ex: Brasil"
-                  editable={!salvando}
-                />
-
-                <View style={{ flex: 0.4 }}>
-                  <Text style={styles.label}>UF</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={uf}
-                    onChangeText={setUf}
-                    placeholder="Ex: RS"
-                    maxLength={2}
-                    autoCapitalize="characters"
-                    editable={!salvando}
-                  />
-                </View>
-              </View>
-
-              <Text style={styles.label}>Cidade</Text>
-              <TextInput
-                style={styles.input}
-                value={cidade}
-                onChangeText={setCidade}
-                placeholder="Ex: Pelotas"
-                editable={!salvando}
-              />
-
-              <Text style={styles.label}>Endereço</Text>
-              <TextInput
-                style={styles.input}
-                value={endereco}
-                onChangeText={setEndereco}
-                placeholder="Logradouro (ex: Rua das Flores)"
-                editable={!salvando}
-              />
-
-              <Text style={styles.label}>Número</Text>
-              <TextInput
-                style={styles.input}
-                value={numero}
-                onChangeText={setNumero}
-                placeholder="Ex: 123 ou S/N"
-                keyboardType="default"
-                editable={!salvando}
-              />
-
-              <Text style={styles.label}>Bairro</Text>
-              <TextInput
-                style={styles.input}
-                value={bairro}
-                onChangeText={setBairro}
-                placeholder="Bairro"
-                editable={!salvando}
-              />
-
-              {/* Troca de senha (sub-formulário) */}
+              {/* Troca de senha */}
               <TouchableOpacity
                 style={styles.toggleSenha}
                 onPress={() => setMostrarSenha((v) => !v)}
@@ -643,7 +329,6 @@ const PerfilScreen = () => {
                 </>
               )}
 
-              {/* Botões de salvar/cancelar */}
               <View style={styles.botoesRow}>
                 <TouchableOpacity
                   style={[styles.btnCancelar, salvando && styles.btnDesabilitado]}
@@ -667,6 +352,94 @@ const PerfilScreen = () => {
             </View>
           )}
         </View>
+
+        {/* Endereço de entrega — sempre visível no modo visualização */}
+        {!editando && (
+          <View style={enderecoStyles.secao}>
+            <View style={enderecoStyles.secaoHeader}>
+              <Text style={styles.sectionTitle}>Endereço de entrega</Text>
+              <TouchableOpacity
+                style={enderecoStyles.botaoGerenciar}
+                onPress={() => router.push("/perfil/enderecos")}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="settings-outline" size={14} color="#255336" />
+                <Text style={enderecoStyles.botaoGerenciarTexto}>Gerenciar</Text>
+              </TouchableOpacity>
+            </View>
+
+            {enderecoAtual ? (
+              <View style={enderecoStyles.card}>
+                <View style={enderecoStyles.cardHeader}>
+                  <View style={enderecoStyles.iconeWrap}>
+                    <Ionicons name="location" size={18} color="#4A7C59" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={enderecoStyles.cardLabelRow}>
+                      <Text style={enderecoStyles.cardLabel}>
+                        {enderecoAtual.label}
+                      </Text>
+                      {enderecoAtual.principal && (
+                        <View style={enderecoStyles.badgePrincipal}>
+                          <Ionicons name="star" size={9} color="#FFF" />
+                          <Text style={enderecoStyles.badgePrincipalTexto}>
+                            Principal
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={enderecoStyles.cardLinha}>
+                      {enderecoAtual.endereco}
+                      {enderecoAtual.numero ? `, ${enderecoAtual.numero}` : ""}
+                    </Text>
+                    {enderecoAtual.complemento ? (
+                      <Text style={enderecoStyles.cardLinhaSub}>
+                        {enderecoAtual.complemento}
+                      </Text>
+                    ) : null}
+                    <Text style={enderecoStyles.cardLinhaSub}>
+                      {[
+                        enderecoAtual.bairro,
+                        enderecoAtual.cidade,
+                        enderecoAtual.uf,
+                      ]
+                        .filter(Boolean)
+                        .join(" • ")}
+                    </Text>
+                  </View>
+                </View>
+                {enderecos.length > 1 && (
+                  <TouchableOpacity
+                    style={enderecoStyles.botaoTrocar}
+                    onPress={() => router.push("/perfil/enderecos")}
+                  >
+                    <Ionicons name="swap-horizontal" size={14} color="#255336" />
+                    <Text style={enderecoStyles.botaoTrocarTexto}>
+                      Trocar endereço ({enderecos.length} cadastrados)
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={enderecoStyles.cardVazio}
+                onPress={() => router.push("/perfil/enderecos/novo")}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add-circle-outline" size={24} color="#4A7C59" />
+                <View style={{ flex: 1 }}>
+                  <Text style={enderecoStyles.cardVazioTitulo}>
+                    Adicionar endereço
+                  </Text>
+                  <Text style={enderecoStyles.cardVazioSub}>
+                    Cadastre um endereço para receber suas feiras
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#999" />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         {/* Últimos pedidos */}
         {!editando && (
@@ -706,7 +479,7 @@ const PerfilScreen = () => {
           </View>
         )}
 
-        {/* Notificações (preferências locais) */}
+        {/* Notificações */}
         {!editando && (
           <View style={styles.secao}>
             <Text style={styles.secaoTitulo}>Notificações</Text>
@@ -768,7 +541,7 @@ const PerfilScreen = () => {
               onPress={() =>
                 Alert.alert(
                   "Feirô",
-                  "Aplicativo para encontrar as melhores feiras da sua região.\n\nVersão 1.0.0"
+                  "Aplicativo para encontrar as melhores feiras da sua região.\n\nVersão 1.0.0",
                 )
               }
             >
@@ -802,7 +575,6 @@ const PerfilScreen = () => {
           </View>
         )}
 
-        {/* Botão sair (não aparece em modo edição) */}
         {!editando && (
           <TouchableOpacity style={styles.sairButton} onPress={sair}>
             <Ionicons name="log-out-outline" size={24} color="#FF5722" />
@@ -880,16 +652,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  // visualização
   usuarioInfo: { alignItems: "center" },
   usuarioNome: { fontSize: 20, fontWeight: "bold", color: "#333", marginBottom: 4 },
   usuarioEmail: { fontSize: 14, color: "#666", marginBottom: 2 },
   usuarioTelefone: { fontSize: 14, color: "#666", marginBottom: 2 },
-  usuarioEndereco: { fontSize: 13, color: "#999", textAlign: "center", lineHeight: 18 },
 
-  // edição
   form: { width: "100%", gap: 4 },
-  label: { color: "#333", marginTop: 8, marginBottom: 4, fontWeight: "600", fontSize: 13 },
+  label: {
+    color: "#333",
+    marginTop: 8,
+    marginBottom: 4,
+    fontWeight: "600",
+    fontSize: 13,
+  },
   input: {
     backgroundColor: "#FAFAFA",
     padding: 12,
@@ -927,44 +702,7 @@ const styles = StyleSheet.create({
   },
   btnSalvarText: { color: "#FFFFFF", fontWeight: "600" },
   btnDesabilitado: { opacity: 0.6 },
-  btnBuscarCep: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: "#255336",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  btnBuscarCepText: { color: "#FFFFFF", fontWeight: "600", fontSize: 13 },
-  avisoLocal: {
-    width: "100%",
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: "#FEF3C7",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#FCD34D",
-    alignItems: "center",
-    gap: 8,
-  },
-  avisoLocalTexto: {
-    color: "#92400E",
-    fontSize: 12,
-    textAlign: "center",
-    lineHeight: 16,
-  },
-  btnRecalcular: {
-    marginTop: 4,
-    backgroundColor: "#92400E",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  btnRecalcularText: { color: "#FFFFFF", fontWeight: "600", fontSize: 13 },
 
-  // seções
   secao: { marginHorizontal: 16, marginBottom: 24 },
   secaoTitulo: { fontSize: 18, fontWeight: "bold", color: "#333", marginBottom: 12 },
   opcaoItem: {
@@ -1016,7 +754,6 @@ const styles = StyleSheet.create({
 
   navSpacer: { height: 20 },
 
-  // últimos pedidos
   pedidosSection: { marginHorizontal: 16, marginTop: 4, marginBottom: 16 },
   sectionTitle: { fontSize: 18, fontWeight: "700", color: "#333", marginBottom: 8 },
   pedidoCard: {
@@ -1034,6 +771,124 @@ const styles = StyleSheet.create({
   pedidoTotal: { fontWeight: "700", color: "#255336" },
   pedidoStatus: { color: "#666", fontSize: 12 },
   noPedidos: { color: "#666", fontStyle: "italic" },
+});
+
+// Estilos da seção "Endereço de entrega"
+const enderecoStyles = StyleSheet.create({
+  secao: { marginHorizontal: 16, marginBottom: 24 },
+  secaoHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  botaoGerenciar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#255336",
+    backgroundColor: "#E8F9F1",
+  },
+  botaoGerenciarTexto: {
+    color: "#255336",
+    fontWeight: "600",
+    fontSize: 12,
+  },
+  card: {
+    backgroundColor: "#FFF",
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#EAEFEA",
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  iconeWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#E8F5E8",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
+  },
+  cardLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#255336",
+  },
+  badgePrincipal: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#4A7C59",
+    borderRadius: 999,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  badgePrincipalTexto: {
+    color: "#FFF",
+    fontSize: 9,
+    fontWeight: "700",
+  },
+  cardLinha: {
+    fontSize: 13,
+    color: "#333",
+    marginBottom: 2,
+  },
+  cardLinhaSub: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 2,
+  },
+  botaoTrocar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 10,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#EAEFEA",
+  },
+  botaoTrocarTexto: {
+    color: "#255336",
+    fontWeight: "600",
+    fontSize: 12,
+  },
+  cardVazio: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#FFF",
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#EAEFEA",
+    borderStyle: "dashed",
+  },
+  cardVazioTitulo: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#255336",
+  },
+  cardVazioSub: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 2,
+  },
 });
 
 export default PerfilScreen;

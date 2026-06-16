@@ -98,7 +98,7 @@ export default function ProdutosFeiranteScreen() {
 
   // Contextos
   const { state, getFeirante, getFeira, getAllProdutos } = useApp();
-  const { user } = useUser();
+  const { user, enderecoAtual } = useUser();
   const {
     state: cestaState,
     adicionarItem,
@@ -517,9 +517,10 @@ export default function ProdutosFeiranteScreen() {
   }
 
   // Decide se o cliente atual está dentro do raio de entrega deste feirante.
+  // Usa as coordenadas do ENDEREÇO selecionado (não do user).
   const clienteCoords = {
-    latitude: user?.latitude ?? null,
-    longitude: user?.longitude ?? null,
+    latitude: enderecoAtual?.latitude ?? null,
+    longitude: enderecoAtual?.longitude ?? null,
   };
   const clienteTemCoordenadas =
     clienteCoords.latitude != null && clienteCoords.longitude != null;

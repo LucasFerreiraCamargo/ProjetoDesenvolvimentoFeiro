@@ -55,20 +55,28 @@ export default function RotaDetalhe() {
   }, [carregar])
 
   // Coordenadas (para renderizar marcadores e polyline)
+  // Endereço de entrega vem do endereço PRINCIPAL do cliente (modelo iFood).
   const coordenadas = useMemo(() => {
     if (!rota?.paradas) return []
     return rota.paradas
-      .filter((p) => p.pedido?.usuario?.latitude != null && p.pedido?.usuario?.longitude != null)
-      .map((p) => ({
+      .map((p) => {
+        const endPrincipal = (p.pedido?.usuario as any)?.enderecos?.[0]
+        return { p, endPrincipal }
+      })
+      .filter(
+        ({ endPrincipal }) =>
+          endPrincipal?.latitude != null && endPrincipal?.longitude != null,
+      )
+      .map(({ p, endPrincipal }) => ({
         id: p.pedido_id,
         ordem: p.ordem,
         cliente: p.pedido?.usuario?.nome ?? `Pedido #${p.pedido_id}`,
         endereco:
-          [p.pedido?.usuario?.endereco, p.pedido?.usuario?.numero]
+          [endPrincipal.endereco, endPrincipal.numero]
             .filter(Boolean)
             .join(', ') || undefined,
-        latitude: p.pedido!.usuario!.latitude!,
-        longitude: p.pedido!.usuario!.longitude!,
+        latitude: endPrincipal.latitude as number,
+        longitude: endPrincipal.longitude as number,
         status: p.status_parada,
       }))
   }, [rota])

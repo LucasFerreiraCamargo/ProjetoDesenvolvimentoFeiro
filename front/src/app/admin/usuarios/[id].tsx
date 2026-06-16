@@ -72,10 +72,47 @@ export default function UsuarioDetalhe() {
           <Text style={styles.nome}>{usuario.nome}</Text>
           <Text style={styles.email}>{usuario.email}</Text>
           {usuario.telefone ? <Text style={styles.info}>{usuario.telefone}</Text> : null}
-          {usuario.endereco ? <Text style={styles.info}>{usuario.endereco}</Text> : null}
-          {usuario.bairro ? <Text style={styles.info}>{usuario.bairro}</Text> : null}
         </View>
       </View>
+
+      {/* Endereços cadastrados pelo cliente (modelo iFood) */}
+      {Array.isArray(usuario.enderecos) && usuario.enderecos.length > 0 ? (
+        <View>
+          <Text style={styles.secaoTitulo}>Endereços</Text>
+          {usuario.enderecos.map((end: any) => (
+            <View key={end.id} style={styles.enderecoCard}>
+              <View style={styles.enderecoCabecalho}>
+                <View style={styles.enderecoLabelRow}>
+                  <Ionicons name="location" size={16} color="#4A7C59" />
+                  <Text style={styles.enderecoLabel}>{end.label}</Text>
+                </View>
+                {end.principal && (
+                  <View style={styles.badgePrincipal}>
+                    <Ionicons name="star" size={9} color="#FFF" />
+                    <Text style={styles.badgePrincipalTexto}>Principal</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.enderecoLinha}>
+                {end.endereco}{end.numero ? `, ${end.numero}` : ''}
+              </Text>
+              {end.complemento ? (
+                <Text style={styles.enderecoLinhaSub}>{end.complemento}</Text>
+              ) : null}
+              <Text style={styles.enderecoLinhaSub}>
+                {[end.bairro, end.cidade, end.uf].filter(Boolean).join(' • ')}
+              </Text>
+              {end.cep ? (
+                <Text style={styles.enderecoLinhaSub}>CEP: {end.cep}</Text>
+              ) : null}
+            </View>
+          ))}
+        </View>
+      ) : (
+        <View style={styles.card}>
+          <Text style={styles.info}>Nenhum endereço cadastrado.</Text>
+        </View>
+      )}
 
       <View style={styles.statsCard}>
         <Text style={styles.statsNum}>{pedidos.length}</Text>
@@ -187,4 +224,45 @@ const styles = StyleSheet.create({
   pedidoTotal: { fontSize: 14, fontFamily: 'Poppins-SemiBold', color: '#255336' },
   pedidoBase: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   pedidoMeta: { fontSize: 12, fontFamily: 'Poppins-Regular', color: '#666666' },
+  enderecoCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#EEEEEE',
+    elevation: 2,
+    shadowColor: 'rgba(0,0,0,0.05)',
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 2,
+    shadowOpacity: 1,
+  },
+  enderecoCabecalho: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  enderecoLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  enderecoLabel: {
+    fontSize: 14,
+    fontFamily: 'Poppins-SemiBold',
+    color: '#255336',
+  },
+  badgePrincipal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#4A7C59',
+    borderRadius: 999,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  badgePrincipalTexto: {
+    color: '#FFF',
+    fontSize: 9,
+    fontFamily: 'Poppins-SemiBold',
+  },
+  enderecoLinha: { fontSize: 13, color: '#333', marginBottom: 2 },
+  enderecoLinhaSub: { fontSize: 12, color: '#666', marginBottom: 2 },
 })

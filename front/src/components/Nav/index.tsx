@@ -14,7 +14,7 @@ const Nav: React.FC = () => {
     { name: "Início", icon: "home", route: "/home" },
     { name: "Mapa", icon: "map", route: "/mapa" },
     { name: "Cesta", icon: "basket", route: "/cesta/cesta" },
-    { name: "Recorrente", icon: "repeat", route: "/recorrente" },
+    { name: "Recorrente", icon: "repeat", route: "/minhas-cestas" },
     { name: "Feiras", icon: "storefront", route: "/feiras" },
   ];
 

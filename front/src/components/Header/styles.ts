@@ -26,20 +26,31 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    // flex:1 + minWidth:0 garantem que o bloco do endereço encolha em vez
+    // de empurrar os ícones da direita pra fora da tela.
+    flex: 1,
+    minWidth: 0,
+    marginRight: 8,
   },
   logoSmall: {
     width: 60,
     height: 100,
+    flexShrink: 0,
   },
   locationContainer: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    // Necessário pra que o Text com numberOfLines={1} aplique ellipsis
+    // em vez de continuar crescendo.
+    flex: 1,
+    minWidth: 0,
   },
   locationText: {
     fontSize: 14,
     color: "#4A4A4A",
     fontWeight: "500",
+    flexShrink: 1,
   },
   logo: {
     width: 100,

@@ -251,7 +251,26 @@ export default function PedidoDetalhe() {
         <StatusBadge status={pedido.status ?? 'PENDENTE'} />
       </View>
 
-      {pedido.usuario && (
+      {pedido.usuario && (() => {
+        // Endereço principal do cliente para exibir como "entrega".
+        // (Snapshot por pedido fica para evolução futura — por ora pega o atual.)
+        const enderecoPrincipal = Array.isArray(pedido.usuario.enderecos)
+          ? pedido.usuario.enderecos.find((e: any) => e.principal) ??
+            pedido.usuario.enderecos[0]
+          : null;
+        const enderecoFormatado = enderecoPrincipal
+          ? [
+              `${enderecoPrincipal.endereco}${enderecoPrincipal.numero ? `, ${enderecoPrincipal.numero}` : ""}`,
+              enderecoPrincipal.complemento,
+              [enderecoPrincipal.bairro, enderecoPrincipal.cidade, enderecoPrincipal.uf]
+                .filter(Boolean)
+                .join(" • "),
+              enderecoPrincipal.cep ? `CEP: ${enderecoPrincipal.cep}` : null,
+            ]
+              .filter(Boolean)
+              .join("\n")
+          : null;
+        return (
         <View style={styles.card}>
           <Text style={styles.secaoTitulo}>Cliente</Text>
           <Text style={styles.campo}>Nome: {pedido.usuario.nome}</Text>
@@ -259,8 +278,8 @@ export default function PedidoDetalhe() {
           {pedido.usuario.telefone ? (
             <Text style={styles.campo}>Telefone: {pedido.usuario.telefone}</Text>
           ) : null}
-          {pedido.usuario.endereco ? (
-            <Text style={styles.campo}>Endereço: {pedido.usuario.endereco}</Text>
+          {enderecoFormatado ? (
+            <Text style={styles.campo}>Endereço de entrega:{"\n"}{enderecoFormatado}</Text>
           ) : null}
 
           {/* Botão WhatsApp: só aparece se o cliente tem telefone válido */}
@@ -275,7 +294,8 @@ export default function PedidoDetalhe() {
             </TouchableOpacity>
           ) : null}
         </View>
-      )}
+        );
+      })()}
 
       {pedido.itens && pedido.itens.length > 0 && (
         <View style={styles.card}>

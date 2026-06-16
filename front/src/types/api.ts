@@ -41,6 +41,22 @@ export type StatusPedido =
   | "CANCELADO"
   | "FINALIZADO";
 
+/** Tipos de horário do feirante (funcionamento vs entrega). */
+export type TipoHorario = "FUNCIONAMENTO" | "ENTREGA";
+
+export interface HorarioFeirante {
+  id: number;
+  feirante_id: number;
+  tipo: TipoHorario;
+  /** Dia da semana — 0=Domingo, 6=Sábado. */
+  dia_semana: number;
+  /** Formato "HH:MM" (24h). */
+  hora_inicio: string;
+  hora_fim: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** Categorias pré-definidas para cestas (enum CategoriaCesta no banco). */
 export type CategoriaCesta =
   | "SEMANAL"
@@ -175,6 +191,33 @@ export interface Usuario {
   latitude?: number | null;
   longitude?: number | null;
   nivel: number;
+}
+
+/**
+ * Endereço cadastrado pelo cliente (múltiplos endereços por usuário).
+ * Um único endereço fica marcado como `principal=true` por vez — esse é
+ * o default ao logar; o cliente pode trocar temporariamente o "selecionado"
+ * via dropdown no header (estado local em AsyncStorage).
+ */
+export interface EnderecoUsuario {
+  id: number;
+  usuario_id: string;
+  /** Rótulo livre: "Casa", "Trabalho", "Sítio", etc. */
+  label: string;
+  endereco: string;
+  numero?: string | null;
+  complemento?: string | null;
+  bairro: string;
+  cidade?: string | null;
+  estado?: string | null;
+  uf?: string | null;
+  pais?: string | null;
+  cep?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  principal: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface PedidoItem {

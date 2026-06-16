@@ -90,12 +90,13 @@ const BuscaScreen = () => {
   const [carregandoCestas, setCarregandoCestas] = useState(true);
 
   const { state } = useApp();
-  const { user } = useUser();
+  const { user, enderecoAtual } = useUser();
 
-  // Coordenadas do cliente (vindas do login). Usadas pelo filtro de proximidade.
+  // Coordenadas do ENDEREÇO selecionado (não do user). Usadas pelo filtro
+  // de proximidade — muda quando o cliente troca de endereço no dropdown.
   const clienteCoords = {
-    latitude: user?.latitude ?? null,
-    longitude: user?.longitude ?? null,
+    latitude: enderecoAtual?.latitude ?? null,
+    longitude: enderecoAtual?.longitude ?? null,
   };
 
   // IDs das categorias do menu (home) → valores do enum Categoria na API
