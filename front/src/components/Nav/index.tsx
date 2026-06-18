@@ -13,7 +13,9 @@ const Nav: React.FC = () => {
   const navItems = [
     { name: "Início", icon: "home", route: "/home" },
     { name: "Mapa", icon: "map", route: "/mapa" },
-    { name: "Cesta", icon: "basket", route: "/cesta/cesta" },
+    // Cesta saiu daqui — agora vive na cestinha flutuante (que aparece
+    // sempre que há itens) e no atalho do header.
+    { name: "Pedidos", icon: "receipt", route: "/meus-pedidos" },
     { name: "Recorrente", icon: "repeat", route: "/minhas-cestas" },
     { name: "Feiras", icon: "storefront", route: "/feiras" },
   ];

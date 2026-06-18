@@ -423,7 +423,12 @@ const PerfilScreen = () => {
             ) : (
               <TouchableOpacity
                 style={enderecoStyles.cardVazio}
-                onPress={() => router.push("/perfil/enderecos/novo")}
+                onPress={() =>
+                  router.push({
+                    pathname: "/perfil/enderecos/[id]",
+                    params: { id: "novo" },
+                  })
+                }
                 activeOpacity={0.8}
               >
                 <Ionicons name="add-circle-outline" size={24} color="#4A7C59" />

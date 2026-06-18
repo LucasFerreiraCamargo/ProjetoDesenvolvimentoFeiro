@@ -127,11 +127,17 @@ const MeusEnderecos: React.FC = () => {
   }
 
   function editar(end: EnderecoUsuario) {
-    router.push(`/perfil/enderecos/${end.id}`);
+    router.push({
+      pathname: "/perfil/enderecos/[id]",
+      params: { id: String(end.id) },
+    });
   }
 
   function adicionar() {
-    router.push("/perfil/enderecos/novo");
+    router.push({
+      pathname: "/perfil/enderecos/[id]",
+      params: { id: "novo" },
+    });
   }
 
   function formatarLinhaPrincipal(end: EnderecoUsuario) {

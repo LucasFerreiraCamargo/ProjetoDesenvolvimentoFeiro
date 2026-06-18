@@ -147,7 +147,11 @@ const FinalizaPedido = () => {
             { text: "Cancelar", style: "cancel" },
             {
               text: "Cadastrar agora",
-              onPress: () => router.push("/perfil/enderecos/index"),
+              onPress: () =>
+                router.push({
+                  pathname: "/perfil/enderecos/[id]",
+                  params: { id: "novo" },
+                }),
             },
           ],
         );
@@ -262,9 +266,43 @@ const FinalizaPedido = () => {
       }
 
       console.log("[FinalizaPedido] Pedido criado:", data);
+
+      // Monta endereço resumido pra exibir na tela de confirmação.
+      // No caso de retirada na feira, vai vazio e a tela mostra o local fixo.
+      let enderecoResumo = "";
+      if (tipoEntrega === "endereco" && enderecoAtual) {
+        enderecoResumo = [
+          `${enderecoAtual.endereco}${enderecoAtual.numero ? `, ${enderecoAtual.numero}` : ""}`,
+          enderecoAtual.bairro,
+          enderecoAtual.cidade && enderecoAtual.uf
+            ? `${enderecoAtual.cidade}/${enderecoAtual.uf}`
+            : enderecoAtual.cidade ?? "",
+        ]
+          .filter(Boolean)
+          .join(" - ");
+      }
+
+      // Mapeia o tipo de pagamento pra um label legível
+      const labelPagamento =
+        tipoPagamento === "credito"
+          ? "Cartão de Crédito"
+          : tipoPagamento === "pix"
+          ? "PIX"
+          : "Dinheiro";
+
       // Limpa a cesta após o pedido ser persistido com sucesso
       limparCesta();
-      router.push("/pedido-confirmado");
+      router.push({
+        pathname: "/pedido-confirmado",
+        params: {
+          id: String(data?.id ?? ""),
+          total: String(totalPedido.toFixed(2)),
+          endereco: enderecoResumo,
+          tipoEntrega,
+          horario: horarioSelecionado,
+          pagamento: labelPagamento,
+        },
+      });
     } catch (e: any) {
       console.error("[FinalizaPedido] Exceção:", e);
       Alert.alert(
@@ -308,6 +346,23 @@ const FinalizaPedido = () => {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
       >
+        {/* Banner: cesta recorrente foi criada, mas a cesta atual continua
+            aberta — reforça pro cliente que ele ainda precisa finalizar. */}
+        {cestaState.cestaRecorrenteId != null && (
+          <View style={bannerRecorrenteStyles.banner}>
+            <Ionicons name="checkmark-circle" size={20} color="#255336" />
+            <View style={{ flex: 1 }}>
+              <Text style={bannerRecorrenteStyles.titulo}>
+                Cesta recorrente configurada
+              </Text>
+              <Text style={bannerRecorrenteStyles.texto}>
+                Sua cesta atual continua em aberto. Finalize o pedido abaixo —
+                a recorrente é separada e começa no próximo ciclo.
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* Resumo do Pedido */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Resumo do Pedido</Text>
@@ -395,10 +450,13 @@ const FinalizaPedido = () => {
                 onPress={() =>
                   enderecoAtual
                     ? router.push({
-                        pathname: "/perfil/enderecos/index",
+                        pathname: "/perfil/enderecos",
                         params: { selecionado: String(enderecoAtual.id) },
                       })
-                    : router.push("/perfil/enderecos/index")
+                    : router.push({
+                        pathname: "/perfil/enderecos/[id]",
+                        params: { id: "novo" },
+                      })
                 }
               >
                 <Text style={styles.editarLink}>
@@ -1064,6 +1122,35 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     backgroundColor: "#2D5D31",
+  },
+});
+
+// Estilos do banner "Cesta recorrente configurada" — aparece no topo da
+// tela depois que o cliente cria uma recorrente, deixando claro que a
+// cesta atual segue em aberto e ele ainda precisa finalizar.
+const bannerRecorrenteStyles = StyleSheet.create({
+  banner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    backgroundColor: "#E8F5E8",
+    borderColor: "#4A7C59",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginHorizontal: 16,
+    marginTop: 12,
+  },
+  titulo: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#255336",
+    marginBottom: 2,
+  },
+  texto: {
+    fontSize: 12,
+    color: "#3C5C46",
+    lineHeight: 16,
   },
 });
 

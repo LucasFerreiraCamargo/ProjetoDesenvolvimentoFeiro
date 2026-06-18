@@ -1,7 +1,20 @@
+/**
+ * Tela: Pedido confirmado.
+ *
+ * Recebe via params (router.push) os dados reais do pedido recém criado:
+ *  - id          → número do pedido (vindo da API)
+ *  - total       → valor total já formatado (sem o "R$")
+ *  - endereco    → endereço resumido de entrega (vazio quando retirada)
+ *  - tipoEntrega → "endereco" | "feira"
+ *  - horario     → janela escolhida pelo cliente
+ *  - pagamento   → método (Cartão, PIX, Dinheiro)
+ *
+ * Nada é mockado — sem params, exibe placeholders neutros ("—").
+ */
+
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React from "react";
 import {
   SafeAreaView,
   ScrollView,
@@ -11,49 +24,41 @@ import {
   View,
 } from "react-native";
 
-
-interface PedidoInfo {
-  numero: string;
-  endereco: string;
-  horario: string;
-  total: string;
-  tipoEntrega: "entrega" | "retirada";
-  metodoPagamento: string;
-}
+type Params = {
+  id?: string;
+  total?: string;
+  endereco?: string;
+  tipoEntrega?: "endereco" | "feira";
+  horario?: string;
+  pagamento?: string;
+};
 
 export default function PedidoConfirmadoScreen() {
-  const [pedidoInfo, setPedidoInfo] = useState<PedidoInfo>({
-    numero: "#FEIRO25987",
-    endereco: "Rua das Flores, 123 - Jardim Primavera",
-    horario: "Hoje, entre 14:00 - 15:00",
-    total: "R$ 10,80",
-    tipoEntrega: "entrega",
-    metodoPagamento: "Cartão de Crédito",
-  });
+  const raw = useLocalSearchParams<Params>();
 
-  useEffect(() => {
-    carregarDadosPedido();
-  }, []);
+  // useLocalSearchParams pode devolver string ou string[]; normaliza.
+  const pick = (v: string | string[] | undefined): string =>
+    Array.isArray(v) ? v[0] ?? "" : v ?? "";
 
-  const carregarDadosPedido = async () => {
-    try {
-      const dadosFormulario = await AsyncStorage.getItem(
-        "dadosFinalizarPedido"
-      );
-      if (dadosFormulario) {
-        const dados = JSON.parse(dadosFormulario);
-        setPedidoInfo((prev) => ({
-          ...prev,
-          tipoEntrega: dados.tipoEntrega || "entrega",
-          endereco: dados.endereco || prev.endereco,
-          horario: dados.horario || prev.horario,
-          metodoPagamento: dados.metodoPagamento || prev.metodoPagamento,
-        }));
-      }
-    } catch (error) {
-      console.log("Erro ao carregar dados do pedido:", error);
-    }
-  };
+  const idStr = pick(raw.id);
+  const totalStr = pick(raw.total);
+  const enderecoStr = pick(raw.endereco);
+  const tipoEntrega: "endereco" | "feira" =
+    (pick(raw.tipoEntrega) as "endereco" | "feira") || "endereco";
+  const horarioStr = pick(raw.horario);
+  const pagamentoStr = pick(raw.pagamento);
+
+  // Número do pedido formatado: "#FEIRO00042" (zero-padded de 5 dígitos)
+  const numeroPedido = idStr
+    ? `#FEIRO${idStr.padStart(5, "0")}`
+    : "#FEIRO—";
+
+  // Total já chega como "10.80"; formata em R$.
+  const totalFormatado = totalStr
+    ? `R$ ${Number(totalStr).toFixed(2).replace(".", ",")}`
+    : "—";
+
+  const ehEntrega = tipoEntrega === "endereco";
 
   return (
     <SafeAreaView style={styles.container}>
@@ -62,87 +67,92 @@ export default function PedidoConfirmadoScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Ícone de Sucesso */}
         <View style={styles.successIcon}>
           <Ionicons name="checkmark" size={40} color="#FFF" />
         </View>
 
-        {/* Título */}
         <Text style={styles.title}>Pedido Confirmado!</Text>
         <Text style={styles.subtitle}>Obrigado por comprar na Feirô</Text>
 
-        {/* Card de Informações */}
         <View style={styles.infoCard}>
           {/* Número do Pedido */}
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Número do Pedido</Text>
-            <Text style={styles.infoValue}>{pedidoInfo.numero}</Text>
+            <View style={styles.iconContainer}>
+              <Ionicons name="receipt" size={16} color="#2D5D31" />
+            </View>
+            <View style={styles.infoTextContainer}>
+              <Text style={styles.infoLabel}>Número do Pedido</Text>
+              <Text style={styles.infoValue}>{numeroPedido}</Text>
+            </View>
           </View>
 
-          {/* Endereço de Entrega */}
+          {/* Endereço de Entrega / Local de Retirada */}
           <View style={styles.infoRow}>
             <View style={styles.iconContainer}>
               <Ionicons name="location" size={16} color="#2D5D31" />
             </View>
             <View style={styles.infoTextContainer}>
               <Text style={styles.infoLabel}>
-                {pedidoInfo.tipoEntrega === "entrega"
-                  ? "Endereço de Entrega"
-                  : "Local de Retirada"}
+                {ehEntrega ? "Endereço de Entrega" : "Local de Retirada"}
               </Text>
               <Text style={styles.infoValue}>
-                {pedidoInfo.tipoEntrega === "entrega"
-                  ? pedidoInfo.endereco
+                {ehEntrega
+                  ? enderecoStr || "—"
                   : "Feira do João - Banca 23"}
               </Text>
             </View>
           </View>
 
-          {/* Previsão de Entrega */}
+          {/* Previsão / Horário */}
           <View style={styles.infoRow}>
             <View style={styles.iconContainer}>
               <Ionicons name="time" size={16} color="#2D5D31" />
             </View>
             <View style={styles.infoTextContainer}>
               <Text style={styles.infoLabel}>
-                {pedidoInfo.tipoEntrega === "entrega"
-                  ? "Previsão de Entrega"
-                  : "Horário de Retirada"}
+                {ehEntrega ? "Previsão de Entrega" : "Horário de Retirada"}
               </Text>
-              <Text style={styles.infoValue}>{pedidoInfo.horario}</Text>
+              <Text style={styles.infoValue}>{horarioStr || "—"}</Text>
             </View>
           </View>
 
+          {/* Forma de pagamento */}
+          {pagamentoStr ? (
+            <View style={styles.infoRow}>
+              <View style={styles.iconContainer}>
+                <Ionicons name="card" size={16} color="#2D5D31" />
+              </View>
+              <View style={styles.infoTextContainer}>
+                <Text style={styles.infoLabel}>Pagamento</Text>
+                <Text style={styles.infoValue}>{pagamentoStr}</Text>
+              </View>
+            </View>
+          ) : null}
+
           {/* Valor Total */}
-          <View style={styles.infoRow}>
+          <View style={[styles.infoRow, { marginBottom: 0 }]}>
             <View style={styles.iconContainer}>
               <Ionicons name="wallet" size={16} color="#2D5D31" />
             </View>
             <View style={styles.infoTextContainer}>
               <Text style={styles.infoLabel}>Valor Total</Text>
-              <Text style={styles.infoValueTotal}>{pedidoInfo.total}</Text>
+              <Text style={styles.infoValueTotal}>{totalFormatado}</Text>
             </View>
           </View>
         </View>
 
-        {/* Botões */}
         <View style={styles.buttonsContainer}>
-          {/* Botão Acompanhar Pedido - só aparece se for entrega */}
-          {pedidoInfo.tipoEntrega === "entrega" && (
+          {/* Acompanhar — só quando há entrega E o id é válido */}
+          {ehEntrega && idStr ? (
             <TouchableOpacity
               style={styles.primaryButton}
-              onPress={() => {
-                const pedidoId = pedidoInfo.numero.replace("#FEIRO", "");
-                // router.push(`/acompanhar-pedido?id=${pedidoId}`);
-                router.push(`/acompanhar-pedido/${pedidoId}`);
-              }}
+              onPress={() => router.push(`/acompanhar-pedido/${idStr}` as any)}
             >
               <Ionicons name="car" size={20} color="#FFF" />
               <Text style={styles.primaryButtonText}>Acompanhar Pedido</Text>
             </TouchableOpacity>
-          )}
+          ) : null}
 
-          {/* Botão Voltar para Home */}
           <TouchableOpacity
             style={styles.secondaryButton}
             onPress={() => router.push("/home")}
@@ -152,22 +162,15 @@ export default function PedidoConfirmadoScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Espaçamento para a barra de navegação */}
         <View style={styles.bottomSpacer} />
       </ScrollView>
-
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFF7E4",
-  },
-  scrollView: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: "#FFF7E4" },
+  scrollView: { flex: 1 },
   scrollContent: {
     alignItems: "center",
     paddingTop: 60,
@@ -218,9 +221,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingTop: 2,
   },
-  infoTextContainer: {
-    flex: 1,
-  },
+  infoTextContainer: { flex: 1 },
   infoLabel: {
     fontSize: 14,
     color: "#666",
@@ -236,10 +237,7 @@ const styles = StyleSheet.create({
     color: "#2D5D31",
     fontWeight: "bold",
   },
-  buttonsContainer: {
-    width: "100%",
-    gap: 12,
-  },
+  buttonsContainer: { width: "100%", gap: 12 },
   primaryButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -270,7 +268,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-  bottomSpacer: {
-    height: 30,
-  },
+  bottomSpacer: { height: 30 },
 });

@@ -253,16 +253,21 @@ const CardRecorrente: React.FC = () => {
 
       Alert.alert(
         "Cesta recorrente criada!",
-        `A cesta "${nome.trim()}" será entregue toda(o) ${diaEntrega} (${frequencia.toLowerCase()}).`,
+        `A cesta "${nome.trim()}" será entregue toda(o) ${diaEntrega} (${frequencia.toLowerCase()}).\n\nIMPORTANTE: a sua cesta atual continua em aberto — finalize o pedido normalmente abaixo. A recorrente é separada e começa no próximo ciclo.`,
         [
+          {
+            text: "Continuar finalizando",
+            onPress: () => setModalVisivel(false),
+            style: "default",
+          },
           {
             text: "Ver minhas cestas",
             onPress: () => {
               setModalVisivel(false);
               router.push("/minhas-cestas");
             },
+            style: "cancel",
           },
-          { text: "Fechar", onPress: () => setModalVisivel(false), style: "cancel" },
         ],
       );
     } catch (e: any) {

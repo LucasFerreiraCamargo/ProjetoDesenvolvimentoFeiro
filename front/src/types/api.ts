@@ -302,3 +302,46 @@ export interface ApiError {
   erro: unknown;
   detalhes?: unknown;
 }
+
+// ────────── Chat cliente ↔ feirante (por pedido) ──────────
+
+export type RemetenteChat = "CLIENTE" | "FEIRANTE";
+
+export interface ChatMensagem {
+  id: number;
+  pedido_id: number;
+  remetente_tipo: RemetenteChat;
+  remetente_id: string;
+  texto: string;
+  lida: boolean;
+  createdAt: string;
+}
+
+/** Resposta de GET /chat/pedido/:id — inclui contexto pra renderização. */
+export interface ChatHistorico {
+  mensagens: ChatMensagem[];
+  eu: { tipo: RemetenteChat; remetenteId: string };
+  pedido: { id: number; usuario_id: string; status: StatusPedido };
+}
+
+/** Resposta de GET /chat/nao-lidas — usada pra badge global. */
+export interface ChatNaoLidas {
+  total: number;
+  porPedido: { pedido_id: number; naoLidas: number }[];
+}
+
+/** Resposta de GET /chat/conversas — lista de conversas ativas. */
+export interface ChatConversa {
+  pedido: {
+    id: number;
+    status: StatusPedido;
+    usuario: { id: string; nome: string };
+    items: {
+      mercadoria: {
+        feirante: { id: number; nome: string; banca?: string | null };
+      };
+    }[];
+  };
+  ultimaMensagem: ChatMensagem | null;
+  naoLidas: number;
+}

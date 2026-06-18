@@ -27,8 +27,10 @@ const Header: React.FC = () => {
 
   const [dropdownEnderecosVisivel, setDropdownEnderecosVisivel] =
     React.useState(false);
-  const [menuAdminVisivel, setMenuAdminVisivel] = React.useState(false);
   const [menuPerfilVisivel, setMenuPerfilVisivel] = React.useState(false);
+  // Menu da engrenagem — dá acesso à área do feirante e à cesta atual.
+  const [menuEngrenagemVisivel, setMenuEngrenagemVisivel] =
+    React.useState(false);
 
   // Texto resumido para o header (mantém compacto)
   const enderecoResumido = (() => {
@@ -83,8 +85,11 @@ const Header: React.FC = () => {
       return;
     }
     if (meusEnderecos.length === 0) {
-      // Sem endereços: leva direto pra cadastro
-      router.push("/perfil/enderecos/index");
+      // Sem endereços: leva direto pra cadastro (rota dinâmica com id "novo")
+      router.push({
+        pathname: "/perfil/enderecos/[id]",
+        params: { id: "novo" },
+      });
       return;
     }
     // Tem endereço(s): abre dropdown para escolher
@@ -98,12 +103,15 @@ const Header: React.FC = () => {
 
   const irGerenciar = () => {
     setDropdownEnderecosVisivel(false);
-    router.push("/perfil/enderecos/index");
+    router.push("/perfil/enderecos");
   };
 
   const irAdicionar = () => {
     setDropdownEnderecosVisivel(false);
-    router.push("/perfil/enderecos/index");
+    router.push({
+      pathname: "/perfil/enderecos/[id]",
+      params: { id: "novo" },
+    });
   };
 
   const handleNotificationPress = () => {
@@ -111,8 +119,13 @@ const Header: React.FC = () => {
   };
 
   const handleEntrarAdmin = () => {
-    setMenuAdminVisivel(false);
+    setMenuEngrenagemVisivel(false);
     router.push("/admin/login");
+  };
+
+  const handleAbrirCesta = () => {
+    setMenuEngrenagemVisivel(false);
+    router.push("/cesta/cesta");
   };
 
   return (
@@ -177,8 +190,9 @@ const Header: React.FC = () => {
             <Ionicons name="notifications-outline" size={24} color="#4A4A4A" />
           </TouchableOpacity>
 
+          {/* Engrenagem — abre menu com Área do Feirante e Minha Cesta. */}
           <TouchableOpacity
-            onPress={() => setMenuAdminVisivel(true)}
+            onPress={() => setMenuEngrenagemVisivel(true)}
             activeOpacity={0.7}
           >
             <Ionicons name="settings-outline" size={24} color="#4A4A4A" />
@@ -297,14 +311,16 @@ const Header: React.FC = () => {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* Modal menu admin */}
+      {/* ─── Modal da engrenagem (Configurações) ─── */}
       <Modal
-        visible={menuAdminVisivel}
+        visible={menuEngrenagemVisivel}
         transparent
         animationType="fade"
-        onRequestClose={() => setMenuAdminVisivel(false)}
+        onRequestClose={() => setMenuEngrenagemVisivel(false)}
       >
-        <TouchableWithoutFeedback onPress={() => setMenuAdminVisivel(false)}>
+        <TouchableWithoutFeedback
+          onPress={() => setMenuEngrenagemVisivel(false)}
+        >
           <View style={menuStyles.overlay}>
             <TouchableWithoutFeedback>
               <View style={menuStyles.menu}>
@@ -317,6 +333,30 @@ const Header: React.FC = () => {
 
                 <TouchableOpacity
                   style={menuStyles.item}
+                  onPress={handleAbrirCesta}
+                  activeOpacity={0.8}
+                >
+                  <View style={menuStyles.itemIcone}>
+                    <Ionicons
+                      name="basket-outline"
+                      size={20}
+                      color="#255336"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={menuStyles.itemTitulo}>Minha cesta</Text>
+                    <Text style={menuStyles.itemSub}>
+                      Ver itens e finalizar pedido
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color="#999" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    menuStyles.item,
+                    { borderTopWidth: 1, borderTopColor: "#F0F0F0" },
+                  ]}
                   onPress={handleEntrarAdmin}
                   activeOpacity={0.8}
                 >
@@ -341,11 +381,14 @@ const Header: React.FC = () => {
                     menuStyles.item,
                     { borderTopWidth: 1, borderTopColor: "#F0F0F0" },
                   ]}
-                  onPress={() => setMenuAdminVisivel(false)}
+                  onPress={() => setMenuEngrenagemVisivel(false)}
                   activeOpacity={0.8}
                 >
                   <View
-                    style={[menuStyles.itemIcone, { backgroundColor: "#FFF0F0" }]}
+                    style={[
+                      menuStyles.itemIcone,
+                      { backgroundColor: "#FFF0F0" },
+                    ]}
                   >
                     <Ionicons name="close-outline" size={20} color="#999" />
                   </View>

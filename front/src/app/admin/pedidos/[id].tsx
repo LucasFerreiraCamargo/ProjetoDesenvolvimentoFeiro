@@ -282,6 +282,25 @@ export default function PedidoDetalhe() {
             <Text style={styles.campo}>Endereço de entrega:{"\n"}{enderecoFormatado}</Text>
           ) : null}
 
+          {/* Chat em tempo real com o cliente — só enquanto o pedido está
+              em andamento. */}
+          {pedido?.status &&
+            !["PENDENTE", "CANCELADO", "FINALIZADO"].includes(pedido.status) ? (
+            <TouchableOpacity
+              style={styles.chatBtn}
+              onPress={() =>
+                router.push({
+                  pathname: "/chat/[pedidoId]",
+                  params: { pedidoId: String(pedido.id) },
+                })
+              }
+              activeOpacity={0.85}
+            >
+              <Ionicons name="chatbubbles" size={20} color="#FFFFFF" />
+              <Text style={styles.chatBtnText}>Conversar com cliente</Text>
+            </TouchableOpacity>
+          ) : null}
+
           {/* Botão WhatsApp: só aparece se o cliente tem telefone válido */}
           {normalizaTelefoneParaWhatsapp(pedido.usuario.telefone) ? (
             <TouchableOpacity
@@ -533,6 +552,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
+  chatBtn: {
+    marginTop: 12,
+    backgroundColor: '#4A7C59',
+    borderRadius: 8,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  chatBtnText: { color: '#FFFFFF', fontSize: 14, fontFamily: 'Poppins-SemiBold' },
   whatsappBtnText: { color: '#FFFFFF', fontSize: 14, fontFamily: 'Poppins-SemiBold' },
   itemNome: { fontSize: 14, fontFamily: 'Poppins-SemiBold', color: '#333333' },
   itemPrecoUnit: { fontSize: 12, fontFamily: 'Poppins-Regular', color: '#666666' },

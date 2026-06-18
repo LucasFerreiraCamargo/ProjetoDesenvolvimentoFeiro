@@ -452,6 +452,28 @@ export default function AcompanharPedidoScreen() {
             )}
           </View>
 
+          {/* Chat com o feirante — só disponível enquanto o pedido está
+              em andamento (não PENDENTE, CANCELADO ou FINALIZADO). */}
+          {pedido?.status &&
+            !["PENDENTE", "CANCELADO", "FINALIZADO"].includes(pedido.status) && (
+              <View style={styles.botoesContainer}>
+                <TouchableOpacity
+                  style={chatButtonStyles.botao}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/chat/[pedidoId]",
+                      params: { pedidoId: String(pedido.id) },
+                    })
+                  }
+                >
+                  <Ionicons name="chatbubbles" size={20} color="#FFF" />
+                  <Text style={chatButtonStyles.texto}>
+                    Falar com o feirante
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
           {/* Botão de voltar */}
           <View style={styles.botoesContainer}>
             <TouchableOpacity
@@ -468,6 +490,25 @@ export default function AcompanharPedidoScreen() {
     </SafeAreaView>
   );
 }
+
+// Estilos do botão de chat com o feirante (cor de destaque verde primário).
+const chatButtonStyles = StyleSheet.create({
+  botao: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#4A7C59",
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginBottom: 8,
+  },
+  texto: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFF7E4" },

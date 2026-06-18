@@ -1103,19 +1103,8 @@ export default function ProdutosFeiranteScreen() {
         {/* Espaço adicional para o nav */}
         <View style={{ height: 100 }} />
       </ScrollView>
-
-      {/* Botão de cesta fixo (único elemento fixo) */}
-      {getTotalItens() > 0 && (
-        <TouchableOpacity
-          style={styles.fixedCestaButton}
-          onPress={() => router.push("/cesta/cesta")}
-        >
-          <Ionicons name="bag" size={24} color="#FFF" />
-          <View style={styles.fixedCestaBadge}>
-            <Text style={styles.fixedCestaBadgeText}>{getTotalItens()}</Text>
-          </View>
-        </TouchableOpacity>
-      )}
+      {/* Cestinha flutuante agora é global — renderizada no _layout.tsx
+          em todas as telas do cliente, não só nesta. */}
     </View>
   );
 }

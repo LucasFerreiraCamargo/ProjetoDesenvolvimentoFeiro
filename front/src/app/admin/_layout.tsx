@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import AdminHeader from '../../components/admin/AdminHeader'
 import AdminNav from '../../components/admin/AdminNav'
-import { AdminProvider, useAdmin } from '../../contexts/AdminContext'
+import { useAdmin } from '../../contexts/AdminContext'
 
 const rotasSemLayout = ['/admin/login']
 
@@ -25,12 +25,13 @@ function AdminLayoutInner() {
 }
 
 export default function AdminLayout() {
+  // AdminProvider já é provido no _layout raiz (pra que telas globais como
+  // /chat/[pedidoId] tenham acesso ao admin.token quando o feirante navega
+  // pra fora de /admin).
   return (
-    <AdminProvider>
-      <SafeAreaProvider>
-        <AdminLayoutInner />
-      </SafeAreaProvider>
-    </AdminProvider>
+    <SafeAreaProvider>
+      <AdminLayoutInner />
+    </SafeAreaProvider>
   )
 }
 

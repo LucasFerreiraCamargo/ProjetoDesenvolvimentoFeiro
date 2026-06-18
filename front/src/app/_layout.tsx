@@ -3,8 +3,10 @@ import { Slot, usePathname } from "expo-router";
 import * as React from "react";
 import { StyleSheet, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import CestaFlutuante from "../components/CestaFlutuante";
 import Header from "../components/Header";
 import Nav from "../components/Nav";
+import { AdminProvider } from "../contexts/AdminContext";
 import { AppProvider } from "../contexts/AppContext";
 import { CestaProvider } from "../contexts/CestaContext";
 import { UserProvider } from "../contexts/UserContext";
@@ -27,6 +29,22 @@ export default function RootLayout() {
 
   const shouldShowHeaderNav = !pagesWithoutHeaderNav.includes(pathname) && !isAdminRoute;
 
+  // Onde NÃO mostrar a cestinha flutuante. Lista por que cada uma:
+  //  - /cesta/*       → já estamos vendo a cesta
+  //  - /finalizapedido → estamos finalizando, botão repetido confunde
+  //  - /pedido-confirmado → pedido fechado, cesta já foi limpa
+  //  - /login, /, /onboarding → sem usuário logado
+  //  - rotas admin → não tem fluxo de cesta
+  const pagesWithoutFloatingCart = [
+    "/cesta/cesta",
+    "/finalizapedido",
+    "/pedido-confirmado",
+  ];
+  const shouldShowFloatingCart =
+    !isAdminRoute &&
+    !pagesWithoutHeaderNav.includes(pathname) &&
+    !pagesWithoutFloatingCart.some((p) => pathname.startsWith(p));
+
   if (!fontsLoaded) {
     return null;
   }
@@ -35,15 +53,22 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <AppProvider>
         <UserProvider>
+          <AdminProvider>
           <CestaProvider>
           <SafeAreaView style={styles.container} edges={[]}>
             {shouldShowHeaderNav && !hasCustomHeader && <Header />}
             <View style={styles.content}>
               <Slot />
             </View>
+            {/* Cestinha flutuante global — fica acima da navbar quando ela
+                está visível, encostada no fundo quando não está. */}
+            {shouldShowFloatingCart && (
+              <CestaFlutuante bottomOffset={shouldShowHeaderNav ? 90 : 20} />
+            )}
             {shouldShowHeaderNav && <Nav />}
           </SafeAreaView>
           </CestaProvider>
+          </AdminProvider>
         </UserProvider>
       </AppProvider>
     </SafeAreaProvider>
