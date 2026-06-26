@@ -91,10 +91,18 @@ const produtoImages: { [key: string]: string } = {
 };
 
 export default function ProdutosFeiranteScreen() {
-  const { feirante: feiranteParam } = useLocalSearchParams();
+  const { feirante: feiranteParam, destaque: destaqueParam } =
+    useLocalSearchParams();
   const feiranteId = Array.isArray(feiranteParam)
     ? feiranteParam[0]
     : feiranteParam;
+  // ID do produto a destacar no topo (vem do `router.push` da busca quando
+  // o cliente clica num produto específico — esse produto deve aparecer
+  // primeiro na lista, com badge "Você buscou por isto".
+  const destaqueIdRaw = Array.isArray(destaqueParam)
+    ? destaqueParam[0]
+    : destaqueParam;
+  const destaqueId = destaqueIdRaw ? String(destaqueIdRaw) : null;
 
   // Contextos
   const { state, getFeirante, getFeira, getAllProdutos } = useApp();
@@ -215,10 +223,12 @@ export default function ProdutosFeiranteScreen() {
     .filter((p: any) => p.precoOriginal != null)
     .map((p: any) => p.id);
 
-  // Filtrar produtos
+  // Filtrar produtos. Quando há `destaque` na URL (cliente clicou num produto
+  // específico na busca), aquele produto vai pro topo da lista e os demais
+  // seguem na ordem natural.
   const produtosFiltrados = useMemo(() => {
     if (!produtosFeirante.length) return [];
-    return produtosFeirante.filter((produto: any) => {
+    const filtrados = produtosFeirante.filter((produto: any) => {
       const matchBusca = produto.nome
         .toLowerCase()
         .includes(busca.toLowerCase());
@@ -228,7 +238,21 @@ export default function ProdutosFeiranteScreen() {
 
       return matchBusca && matchCategoria;
     });
-  }, [produtosFeirante, busca, categoriaAtiva]);
+
+    if (!destaqueId) return filtrados;
+
+    // Reordena: destacado primeiro (se sobreviveu aos filtros), resto depois.
+    const idx = filtrados.findIndex(
+      (p: any) => String(p.id) === destaqueId,
+    );
+    if (idx <= 0) return filtrados;
+    const destacado = filtrados[idx];
+    return [
+      destacado,
+      ...filtrados.slice(0, idx),
+      ...filtrados.slice(idx + 1),
+    ];
+  }, [produtosFeirante, busca, categoriaAtiva, destaqueId]);
 
   // Produtos no carrinho do feirante atual
   // (normaliza para string porque feiranteId da URL é string e feirante.id da API é number)
@@ -832,12 +856,38 @@ export default function ProdutosFeiranteScreen() {
             // Definir tipo de quantidade baseado na unidade padrão ou seleção do usuário
             const quantityType = selectedQuantityType[produto.id] || "unidade";
             const productCanSellByWeight = canSellByWeight(produto);
+            // Produto vindo da busca: marca com borda verde + faixa no topo.
+            const ehDestaque =
+              destaqueId != null && String(produto.id) === destaqueId;
 
             return (
-              <View key={produto.id} style={styles.produtoCard}>
-                {/* Tag de promoção */}
+              <View
+                key={produto.id}
+                style={[
+                  styles.produtoCard,
+                  ehDestaque && styles.produtoCardDestaque,
+                ]}
+              >
+                {/* Faixa "Você buscou por isto" — só pro produto que veio
+                    do clique na busca. Some quando o cliente filtra por
+                    categoria ou busca por outro termo. */}
+                {ehDestaque && (
+                  <View style={styles.destaqueFaixa}>
+                    <Ionicons name="search" size={12} color="#FFF" />
+                    <Text style={styles.destaqueFaixaTexto}>
+                      Você buscou por isto
+                    </Text>
+                  </View>
+                )}
+                {/* Tag de promoção — desce 24px quando há faixa de destaque
+                    pra não sobrepor. */}
                 {isPromotion && (
-                  <View style={styles.promocaoTag}>
+                  <View
+                    style={[
+                      styles.promocaoTag,
+                      ehDestaque && { top: 36 },
+                    ]}
+                  >
                     <Text style={styles.promocaoText}>PROMOÇÃO</Text>
                   </View>
                 )}
@@ -1287,6 +1337,35 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
     position: "relative",
+  },
+  // Variante visual do card quando o produto foi destacado pelo clique vindo
+  // da busca — borda verde + leve fundo esverdeado + paddingTop maior pra
+  // dar espaço pra faixa "Você buscou por isto".
+  produtoCardDestaque: {
+    borderWidth: 2,
+    borderColor: "#4A7C59",
+    backgroundColor: "#F4FAF5",
+    paddingTop: 36,
+  },
+  destaqueFaixa: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#4A7C59",
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+    paddingVertical: 5,
+    zIndex: 2,
+  },
+  destaqueFaixaTexto: {
+    color: "#FFF",
+    fontSize: 11,
+    fontWeight: "700",
   },
   produtoHeader: {
     flexDirection: "row",

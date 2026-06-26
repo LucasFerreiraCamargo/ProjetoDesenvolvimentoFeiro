@@ -8,6 +8,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import BotaoVoltar from "../../components/BotaoVoltar";
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -54,6 +55,9 @@ export default function RegisterScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Fallback do botão Voltar: tela de login (cadastro normalmente é
+          aberto a partir do "Criar conta" no login). */}
+      <BotaoVoltar destinoFallback="/login" />
       {/* Logo
       <View style={styles.logoContainer}>
         <Image

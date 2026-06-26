@@ -1,155 +1,233 @@
+/**
+ * Tela: Notificações (cliente).
+ *
+ * Consome `GET /notificacoes` da API + escuta `notificacao:nova` no canal
+ * pessoal do cliente via Socket.IO (já conectado pelo chat). Marca como
+ * lida ao tocar e segue o deep link em `payload.target` (com fallback por
+ * tipo).
+ */
+
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React from "react";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
+  RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useUser } from "../../contexts/UserContext";
+import { chatSocket } from "../../lib/chatSocket";
+import { notificacoesService } from "../../services/notificacoes";
+import type { Notificacao, TipoNotificacao } from "../../types/api";
 
+/** Mapeia tipo → ícone + cor de fundo do círculo. */
+function visualPorTipo(tipo: TipoNotificacao): { icone: string; cor: string } {
+  switch (tipo) {
+    case "PEDIDO_CONFIRMADO":
+      return { icone: "checkmark-circle", cor: "#4CAF50" };
+    case "PEDIDO_STATUS_MUDOU":
+      return { icone: "sync-circle", cor: "#3B82F6" };
+    case "CHAT_NOVA_MENSAGEM":
+      return { icone: "chatbubbles", cor: "#4A7C59" };
+    case "PROMOCAO":
+      return { icone: "pricetag", cor: "#F59E0B" };
+    case "SISTEMA":
+    default:
+      return { icone: "information-circle", cor: "#7A4F00" };
+  }
+}
 
-type Notificacao = {
-  id: string;
-  tipo: "pedido" | "promocao" | "feira" | "sistema";
-  titulo: string;
-  mensagem: string;
-  tempo: string;
-  lida: boolean;
-  icone: string;
-  cor: string;
-};
+/** Formata createdAt em "há 5 min" / "há 1 hora" / "há 2 dias". */
+function tempoRelativo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const seg = Math.max(1, Math.floor(diff / 1000));
+  if (seg < 60) return "agora mesmo";
+  const min = Math.floor(seg / 60);
+  if (min < 60) return `há ${min} min`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `há ${hr} hora${hr === 1 ? "" : "s"}`;
+  const dia = Math.floor(hr / 24);
+  if (dia < 30) return `há ${dia} dia${dia === 1 ? "" : "s"}`;
+  return new Date(iso).toLocaleDateString("pt-BR");
+}
 
-const NotificacoesScreen = () => {
-  const [notificacoes, setNotificacoes] = useState<Notificacao[]>([
-    {
-      id: "1",
-      tipo: "pedido",
-      titulo: "Pedido confirmado!",
-      mensagem:
-        "Seu pedido da Feira Central foi confirmado pelo feirante João da Silva",
-      tempo: "há 5 min",
-      lida: false,
-      icone: "checkmark-circle",
-      cor: "#4CAF50",
-    },
-    {
-      id: "2",
-      tipo: "promocao",
-      titulo: "Promoção especial!",
-      mensagem: "Tomates com 20% de desconto na Feira do Lobão até amanhã",
-      tempo: "há 1 hora",
-      lida: false,
-      icone: "pricetag",
-      cor: "#FF9800",
-    },
-    {
-      id: "3",
-      tipo: "feira",
-      titulo: "Feira próxima aberta",
-      mensagem: "A Feira Vila Mariana está aberta e fica a apenas 500m de você",
-      tempo: "há 2 horas",
-      lida: true,
-      icone: "storefront",
-      cor: "#2196F3",
-    },
-    {
-      id: "4",
-      tipo: "sistema",
-      titulo: "Bem-vindo ao Feiro!",
-      mensagem:
-        "Explore as melhores feiras da sua região e encontre produtos frescos",
-      tempo: "há 1 dia",
-      lida: true,
-      icone: "heart",
-      cor: "#E91E63",
-    },
-  ]);
+/** Resolve deep link a partir do payload ou do tipo (fallback). */
+function rotaDestino(n: Notificacao): string {
+  const target = n.payload?.target;
+  if (typeof target === "string" && target.startsWith("/")) return target;
+  // Fallback por tipo
+  switch (n.tipo) {
+    case "PEDIDO_CONFIRMADO":
+    case "PEDIDO_STATUS_MUDOU": {
+      const id = n.payload?.pedido_id;
+      return id ? `/acompanhar-pedido/${id}` : "/meus-pedidos";
+    }
+    case "CHAT_NOVA_MENSAGEM": {
+      const id = n.payload?.pedido_id;
+      return id ? `/chat/${id}` : "/meus-pedidos";
+    }
+    case "PROMOCAO":
+      return "/busca?promo=true";
+    default:
+      return "/home";
+  }
+}
 
-  const marcarComoLida = (id: string) => {
-    setNotificacoes(
-      notificacoes.map((notif) =>
-        notif.id === id ? { ...notif, lida: true } : notif
-      )
-    );
-  };
+const NotificacoesScreen: React.FC = () => {
+  const { user } = useUser();
 
-  const marcarTodasComoLidas = () => {
-    setNotificacoes(notificacoes.map((notif) => ({ ...notif, lida: true })));
-  };
+  const [itens, setItens] = React.useState<Notificacao[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [refreshing, setRefreshing] = React.useState(false);
 
-  const removerNotificacao = (id: string) => {
+  // ── Carga ───────────────────────────────────────────────────────────────
+  const carregar = React.useCallback(async () => {
+    if (!user?.token) {
+      setLoading(false);
+      return;
+    }
+    try {
+      const lista = await notificacoesService.listar(user.token, 100);
+      setItens(lista);
+    } catch (e) {
+      console.warn("[Notificacoes] erro:", e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [user?.token]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      carregar();
+    }, [carregar]),
+  );
+
+  // ── Socket: notificação nova no canal pessoal ───────────────────────────
+  React.useEffect(() => {
+    if (!user?.id) return;
+    chatSocket.joinComoCliente(user.id);
+    const handler = (n: Notificacao) => {
+      setItens((atual) => {
+        if (atual.some((x) => x.id === n.id)) return atual;
+        return [n, ...atual];
+      });
+    };
+    chatSocket.on("notificacao:nova", handler);
+    return () => {
+      chatSocket.off("notificacao:nova", handler);
+    };
+  }, [user?.id]);
+
+  // ── Ações ───────────────────────────────────────────────────────────────
+  async function abrir(n: Notificacao) {
+    if (!user?.token) return;
+    // Marca como lida otimisticamente (UI atualiza imediato)
+    if (!n.lida) {
+      setItens((atual) =>
+        atual.map((x) => (x.id === n.id ? { ...x, lida: true } : x)),
+      );
+      notificacoesService.marcarLida(user.token, n.id).catch((e) => {
+        console.warn("[Notificacoes] marcarLida falhou:", e);
+      });
+    }
+    // Deep link
+    const destino = rotaDestino(n);
+    router.push(destino as any);
+  }
+
+  async function marcarTodas() {
+    if (!user?.token) return;
+    setItens((atual) => atual.map((x) => ({ ...x, lida: true })));
+    try {
+      await notificacoesService.marcarTodasLidas(user.token);
+    } catch (e: any) {
+      Alert.alert("Erro", e?.message ?? "Não foi possível marcar todas.");
+      carregar();
+    }
+  }
+
+  function confirmarRemover(n: Notificacao) {
     Alert.alert(
       "Remover notificação",
-      "Tem certeza que deseja remover esta notificação?",
+      "Tem certeza?",
       [
         { text: "Cancelar", style: "cancel" },
         {
           text: "Remover",
           style: "destructive",
-          onPress: () => {
-            setNotificacoes(notificacoes.filter((notif) => notif.id !== id));
+          onPress: async () => {
+            if (!user?.token) return;
+            setItens((atual) => atual.filter((x) => x.id !== n.id));
+            try {
+              await notificacoesService.remover(user.token, n.id);
+            } catch (e: any) {
+              Alert.alert("Erro", e?.message ?? "Não foi possível remover.");
+              carregar();
+            }
           },
         },
-      ]
+      ],
     );
-  };
+  }
 
-  const navegarParaNotificacao = (notificacao: Notificacao) => {
-    marcarComoLida(notificacao.id);
+  const naoLidas = itens.filter((n) => !n.lida).length;
 
-    switch (notificacao.tipo) {
-      case "pedido":
-        router.push("/cesta/cesta");
-        break;
-      case "promocao":
-        router.push("/feiras");
-        break;
-      case "feira":
-        router.push("/mapa");
-        break;
-      default:
-        break;
-    }
-  };
-
-  const renderNotificacao = ({ item }: { item: Notificacao }) => (
-    <TouchableOpacity
-      style={[styles.notificacaoCard, !item.lida && styles.notificacaoNaoLida]}
-      onPress={() => navegarParaNotificacao(item)}
-    >
-      <View style={styles.notificacaoHeader}>
-        <View style={[styles.iconeContainer, { backgroundColor: item.cor }]}>
-          <Ionicons name={item.icone as any} size={20} color="#FFFFFF" />
+  function renderItem({ item }: { item: Notificacao }) {
+    const v = visualPorTipo(item.tipo);
+    return (
+      <TouchableOpacity
+        style={[styles.card, !item.lida && styles.cardNaoLido]}
+        onPress={() => abrir(item)}
+        activeOpacity={0.85}
+      >
+        <View style={[styles.iconeCirculo, { backgroundColor: v.cor }]}>
+          <Ionicons name={v.icone as any} size={20} color="#FFF" />
         </View>
-        <View style={styles.notificacaoInfo}>
-          <Text style={styles.notificacaoTitulo}>{item.titulo}</Text>
-          <Text style={styles.notificacaoMensagem}>{item.mensagem}</Text>
-          <Text style={styles.notificacaoTempo}>{item.tempo}</Text>
+        <View style={{ flex: 1 }}>
+          <Text
+            style={[styles.titulo, !item.lida && styles.tituloNaoLido]}
+            numberOfLines={1}
+          >
+            {item.titulo}
+          </Text>
+          <Text style={styles.corpo} numberOfLines={2}>
+            {item.corpo}
+          </Text>
+          <Text style={styles.tempo}>{tempoRelativo(item.createdAt)}</Text>
         </View>
         <TouchableOpacity
-          style={styles.removerButton}
-          onPress={() => removerNotificacao(item.id)}
+          style={styles.botaoRemover}
+          onPress={() => confirmarRemover(item)}
+          hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
         >
-          <Ionicons name="close" size={20} color="#999" />
+          <Ionicons name="close" size={18} color="#999" />
         </TouchableOpacity>
-      </View>
-      {!item.lida && <View style={styles.indicadorNaoLida} />}
-    </TouchableOpacity>
-  );
+        {!item.lida && <View style={styles.pontoNaoLido} />}
+      </TouchableOpacity>
+    );
+  }
 
-  const notificacaosPendentes = notificacoes.filter((n) => !n.lida).length;
+  if (loading) {
+    return (
+      <View style={styles.centro}>
+        <ActivityIndicator color="#4A7C59" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {/* Cabeçalho da tela */}
       <View style={styles.headerContainer}>
         <Text style={styles.headerTitle}>Notificações 🔔</Text>
-        {notificacaosPendentes > 0 && (
+        {naoLidas > 0 && (
           <TouchableOpacity
-            onPress={marcarTodasComoLidas}
+            onPress={marcarTodas}
             style={styles.marcarButton}
           >
             <Text style={styles.marcarTodasText}>Marcar todas como lidas</Text>
@@ -157,43 +235,48 @@ const NotificacoesScreen = () => {
         )}
       </View>
 
-      {notificacaosPendentes > 0 && (
+      {naoLidas > 0 && (
         <View style={styles.resumoContainer}>
           <Text style={styles.resumoText}>
-            {notificacaosPendentes} notificação
-            {notificacaosPendentes > 1 ? "ões" : ""} não lida
-            {notificacaosPendentes > 1 ? "s" : ""}
+            {naoLidas} notificação{naoLidas > 1 ? "ões" : ""} não lida
+            {naoLidas > 1 ? "s" : ""}
           </Text>
         </View>
       )}
 
-      {notificacoes.length > 0 ? (
-        <FlatList
-          data={notificacoes}
-          renderItem={renderNotificacao}
-          keyExtractor={(item) => item.id}
-          style={styles.lista}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listaContent}
-        />
-      ) : (
-        <View style={styles.vazioContainer}>
-          <Ionicons name="notifications-outline" size={80} color="#CCC" />
-          <Text style={styles.vazioText}>Nenhuma notificação</Text>
-          <Text style={styles.vazioSubtext}>
-            Você receberá notificações sobre pedidos, promoções e novidades
-          </Text>
-        </View>
-      )}
+      <FlatList
+        data={itens}
+        renderItem={renderItem}
+        keyExtractor={(item) => String(item.id)}
+        contentContainerStyle={styles.listaContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              carregar();
+            }}
+            tintColor="#4A7C59"
+          />
+        }
+        ListEmptyComponent={
+          <View style={styles.vazioContainer}>
+            <Ionicons name="notifications-outline" size={64} color="#CBD5C2" />
+            <Text style={styles.vazioText}>Nenhuma notificação</Text>
+            <Text style={styles.vazioSubtext}>
+              Você verá aqui avisos de pedidos, mensagens e promoções.
+            </Text>
+          </View>
+        }
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFF7E4",
-  },
+  container: { flex: 1, backgroundColor: "#FFF7E4" },
+  centro: { flex: 1, alignItems: "center", justifyContent: "center" },
+
   headerContainer: {
     padding: 16,
     alignItems: "center",
@@ -210,109 +293,79 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
   },
-  marcarTodasText: {
-    fontSize: 13,
-    color: "#255336",
-    fontWeight: "600",
-  },
+  marcarTodasText: { fontSize: 13, color: "#255336", fontWeight: "600" },
+
   resumoContainer: {
     backgroundColor: "#E3F2FD",
     marginHorizontal: 16,
-    marginBottom: 16,
-    paddingVertical: 12,
+    marginBottom: 12,
+    paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
     alignItems: "center",
   },
-  resumoText: {
-    fontSize: 14,
-    color: "#1976D2",
-    fontWeight: "500",
-  },
-  lista: {
-    flex: 1,
-  },
-  listaContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-  },
-  notificacaoCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    position: "relative",
-  },
-  notificacaoNaoLida: {
-    borderLeftWidth: 4,
-    borderLeftColor: "#2196F3",
-  },
-  notificacaoHeader: {
+  resumoText: { fontSize: 13, color: "#1976D2", fontWeight: "500" },
+
+  listaContent: { paddingHorizontal: 16, paddingBottom: 100, flexGrow: 1 },
+
+  card: {
     flexDirection: "row",
     alignItems: "flex-start",
+    gap: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#EAEFEA",
+    position: "relative",
   },
-  iconeContainer: {
+  cardNaoLido: {
+    borderLeftWidth: 4,
+    borderLeftColor: "#4A7C59",
+    backgroundColor: "#F8FBF8",
+  },
+  iconeCirculo: {
     width: 40,
     height: 40,
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
   },
-  notificacaoInfo: {
-    flex: 1,
-  },
-  notificacaoTitulo: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 4,
-  },
-  notificacaoMensagem: {
-    fontSize: 14,
-    color: "#666",
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  notificacaoTempo: {
-    fontSize: 12,
-    color: "#999",
-  },
-  removerButton: {
-    padding: 4,
-  },
-  indicadorNaoLida: {
+  titulo: { fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 4 },
+  tituloNaoLido: { color: "#255336", fontWeight: "700" },
+  corpo: { fontSize: 13, color: "#666", lineHeight: 18, marginBottom: 6 },
+  tempo: { fontSize: 11, color: "#999" },
+  botaoRemover: { padding: 4 },
+  pontoNaoLido: {
     position: "absolute",
     top: 12,
-    right: 12,
+    right: 36,
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#2196F3",
+    backgroundColor: "#4A7C59",
   },
+
   vazioContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 32,
+    paddingTop: 80,
   },
   vazioText: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    marginTop: 16,
-    marginBottom: 8,
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#255336",
+    marginTop: 12,
+    marginBottom: 6,
   },
   vazioSubtext: {
-    fontSize: 16,
-    color: "#666",
+    fontSize: 13,
+    color: "#7A8A7C",
     textAlign: "center",
-    lineHeight: 24,
+    lineHeight: 18,
   },
 });
 

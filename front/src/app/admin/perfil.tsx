@@ -262,6 +262,16 @@ export default function AdminPerfil() {
   const [raioKm, setRaioKm] = useState(10)
   const [entregaAtiva, setEntregaAtiva] = useState(true)
 
+  // Edição inline dos dados da banca (nome, banca, especialidade, telefone)
+  const [editandoBanca, setEditandoBanca] = useState(false)
+  const [salvandoBanca, setSalvandoBanca] = useState(false)
+  const [bancaForm, setBancaForm] = useState({
+    nome: '',
+    banca: '',
+    especialidade: '',
+    telefone: '',
+  })
+
   // Accordions
   const [abertoRaio, setAbertoRaio] = useState(false)
   const [abertoFunc, setAbertoFunc] = useState(false)
@@ -290,6 +300,15 @@ export default function AdminPerfil() {
         setFeirante(data)
         if (data.raio_entrega_km) setRaioKm(Number(data.raio_entrega_km))
         if (data.entrega_ativa !== undefined) setEntregaAtiva(!!data.entrega_ativa)
+        // Sincroniza o form de edição da banca com os dados da API.
+        // O fetch só corre no mount/refresh, então não conflita com edição
+        // ativa do usuário.
+        setBancaForm({
+          nome: data.nome ?? '',
+          banca: data.banca ?? '',
+          especialidade: data.especialidade ?? '',
+          telefone: data.telefone ?? '',
+        })
       }
     } catch {
       /* silencioso */
@@ -345,6 +364,94 @@ export default function AdminPerfil() {
     setSalvandoRaio(false)
   }
 
+  /**
+   * Aplica máscara visual de telefone: "(11) 98765-4321" (11 dígitos)
+   * ou "(11) 8765-4321" (10 dígitos). Mantém só dígitos por baixo.
+   */
+  function mascararTelefone(raw: string): string {
+    const d = raw.replace(/\D/g, '').slice(0, 11)
+    if (d.length <= 2) return d.length ? `(${d}` : ''
+    if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
+    if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+    return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+  }
+
+  /** Valida e dispara PATCH /feirantes/:id com os campos da banca. */
+  async function salvarBanca() {
+    if (!admin?.feiranteId || !admin?.token) return
+
+    const nome = bancaForm.nome.trim()
+    const banca = bancaForm.banca.trim()
+    const especialidade = bancaForm.especialidade.trim()
+    const telefoneDigitos = bancaForm.telefone.replace(/\D/g, '')
+
+    if (nome.length < 2) {
+      Alert.alert('Validação', 'O nome deve ter pelo menos 2 caracteres.')
+      return
+    }
+    if (telefoneDigitos.length < 10 || telefoneDigitos.length > 11) {
+      Alert.alert(
+        'Validação',
+        'Telefone deve conter 10 ou 11 dígitos (com DDD).',
+      )
+      return
+    }
+    if (banca.length > 0 && banca.length < 2) {
+      Alert.alert('Validação', 'O nome da banca está muito curto.')
+      return
+    }
+
+    setSalvandoBanca(true)
+    try {
+      const res = await adminFetch(
+        `/feirantes/${admin.feiranteId}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            nome,
+            banca: banca || null,
+            especialidade: especialidade || null,
+            telefone: telefoneDigitos,
+          }),
+        },
+        admin.token,
+      )
+      if (res.ok) {
+        const atualizado = await res.json()
+        setFeirante((prev: any) => ({ ...(prev ?? {}), ...(atualizado ?? {}) }))
+        setEditandoBanca(false)
+        Alert.alert('Sucesso', 'Dados da banca atualizados!')
+      } else {
+        const body = await res.json().catch(() => ({}))
+        Alert.alert(
+          'Não foi possível salvar',
+          body?.erro
+            ? typeof body.erro === 'string'
+              ? body.erro
+              : 'Verifique os dados informados.'
+            : `Erro ${res.status}`,
+        )
+      }
+    } catch (e: any) {
+      Alert.alert('Erro', e?.message ?? 'Falha de conexão.')
+    } finally {
+      setSalvandoBanca(false)
+    }
+  }
+
+  /** Cancela a edição e restaura os valores atuais vindos da API. */
+  function cancelarEdicaoBanca() {
+    if (feirante) {
+      setBancaForm({
+        nome: feirante.nome ?? '',
+        banca: feirante.banca ?? '',
+        especialidade: feirante.especialidade ?? '',
+        telefone: feirante.telefone ?? '',
+      })
+    }
+    setEditandoBanca(false)
+  }
+
   function sair() {
     logout()
     router.replace('/login')
@@ -381,30 +488,144 @@ export default function AdminPerfil() {
         </View>
       </View>
 
-      {/* ── Dados da banca ── */}
+      {/* ── Dados da banca (editável) ── */}
       {admin?.nivel === 2 && feirante && (
         <View style={styles.card}>
-          <Text style={styles.secaoTitulo}>
-            <Ionicons name="storefront-outline" size={16} color="#255336" /> Dados da Banca
-          </Text>
-          <View style={styles.linhaInfo}>
-            <Text style={styles.infoLabel}>Banca:</Text>
-            <Text style={styles.infoValor}>{feirante.banca ?? '—'}</Text>
+          <View style={bancaStyles.headerRow}>
+            <Text style={styles.secaoTitulo}>
+              <Ionicons name="storefront-outline" size={16} color="#255336" />{' '}
+              Dados da Banca
+            </Text>
+            {!editandoBanca && (
+              <TouchableOpacity
+                onPress={() => setEditandoBanca(true)}
+                style={bancaStyles.editarBtn}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="pencil-outline" size={14} color="#255336" />
+                <Text style={bancaStyles.editarBtnTxt}>Editar</Text>
+              </TouchableOpacity>
+            )}
           </View>
-          <View style={styles.linhaInfo}>
-            <Text style={styles.infoLabel}>Especialidade:</Text>
-            <Text style={styles.infoValor}>{feirante.especialidade ?? '—'}</Text>
-          </View>
-          <View style={styles.linhaInfo}>
-            <Text style={styles.infoLabel}>Feira:</Text>
-            <Text style={styles.infoValor}>{feirante.feira?.nome ?? '—'}</Text>
-          </View>
-          {feirante.avaliacao ? (
-            <View style={styles.linhaInfo}>
-              <Text style={styles.infoLabel}>Avaliação:</Text>
-              <Text style={styles.infoValor}>⭐ {Number(feirante.avaliacao).toFixed(1)}</Text>
-            </View>
-          ) : null}
+
+          {editandoBanca ? (
+            <>
+              <Text style={bancaStyles.label}>Nome *</Text>
+              <TextInput
+                style={bancaStyles.input}
+                value={bancaForm.nome}
+                onChangeText={(t) =>
+                  setBancaForm((f) => ({ ...f, nome: t }))
+                }
+                placeholder="Seu nome"
+                editable={!salvandoBanca}
+                maxLength={60}
+              />
+
+              <Text style={bancaStyles.label}>Nome da Banca</Text>
+              <TextInput
+                style={bancaStyles.input}
+                value={bancaForm.banca}
+                onChangeText={(t) =>
+                  setBancaForm((f) => ({ ...f, banca: t }))
+                }
+                placeholder='Ex: "Banca do Seu Zé"'
+                editable={!salvandoBanca}
+                maxLength={100}
+              />
+
+              <Text style={bancaStyles.label}>Especialidade</Text>
+              <TextInput
+                style={bancaStyles.input}
+                value={bancaForm.especialidade}
+                onChangeText={(t) =>
+                  setBancaForm((f) => ({ ...f, especialidade: t }))
+                }
+                placeholder="Ex: Hortifruti orgânico"
+                editable={!salvandoBanca}
+                maxLength={100}
+              />
+
+              <Text style={bancaStyles.label}>Telefone *</Text>
+              <TextInput
+                style={bancaStyles.input}
+                value={bancaForm.telefone}
+                onChangeText={(t) =>
+                  setBancaForm((f) => ({ ...f, telefone: mascararTelefone(t) }))
+                }
+                placeholder="(11) 98765-4321"
+                keyboardType="phone-pad"
+                editable={!salvandoBanca}
+                maxLength={16}
+              />
+
+              <View style={bancaStyles.botoesRow}>
+                <TouchableOpacity
+                  style={[
+                    bancaStyles.btnCancelar,
+                    salvandoBanca && { opacity: 0.5 },
+                  ]}
+                  onPress={cancelarEdicaoBanca}
+                  disabled={salvandoBanca}
+                >
+                  <Text style={bancaStyles.btnCancelarTxt}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    bancaStyles.btnSalvar,
+                    salvandoBanca && { opacity: 0.7 },
+                  ]}
+                  onPress={salvarBanca}
+                  disabled={salvandoBanca}
+                >
+                  {salvandoBanca ? (
+                    <ActivityIndicator color="#FFF" size="small" />
+                  ) : (
+                    <Text style={bancaStyles.btnSalvarTxt}>Salvar</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={styles.linhaInfo}>
+                <Text style={styles.infoLabel}>Nome:</Text>
+                <Text style={styles.infoValor}>{feirante.nome ?? '—'}</Text>
+              </View>
+              <View style={styles.linhaInfo}>
+                <Text style={styles.infoLabel}>Banca:</Text>
+                <Text style={styles.infoValor}>{feirante.banca ?? '—'}</Text>
+              </View>
+              <View style={styles.linhaInfo}>
+                <Text style={styles.infoLabel}>Especialidade:</Text>
+                <Text style={styles.infoValor}>
+                  {feirante.especialidade ?? '—'}
+                </Text>
+              </View>
+              <View style={styles.linhaInfo}>
+                <Text style={styles.infoLabel}>Telefone:</Text>
+                <Text style={styles.infoValor}>
+                  {feirante.telefone
+                    ? mascararTelefone(feirante.telefone)
+                    : '—'}
+                </Text>
+              </View>
+              <View style={styles.linhaInfo}>
+                <Text style={styles.infoLabel}>Feira:</Text>
+                <Text style={styles.infoValor}>
+                  {feirante.feira?.nome ?? '—'}
+                </Text>
+              </View>
+              {feirante.avaliacao ? (
+                <View style={styles.linhaInfo}>
+                  <Text style={styles.infoLabel}>Avaliação:</Text>
+                  <Text style={styles.infoValor}>
+                    ⭐ {Number(feirante.avaliacao).toFixed(1)}
+                  </Text>
+                </View>
+              ) : null}
+            </>
+          )}
         </View>
       )}
 
@@ -772,4 +993,82 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   sairTexto: { fontSize: 16, fontFamily: 'Poppins-SemiBold', color: '#FF5722' },
+})
+
+// Estilos específicos do card "Dados da Banca" — separados pra não poluir
+// o StyleSheet principal e deixar claro qual variante (visualização x edição)
+// está sendo afetada.
+const bancaStyles = StyleSheet.create({
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  editarBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#255336',
+    backgroundColor: '#E8F9F1',
+  },
+  editarBtnTxt: {
+    fontSize: 12,
+    color: '#255336',
+    fontFamily: 'Poppins-SemiBold',
+  },
+  label: {
+    fontSize: 12,
+    color: '#7A8A7C',
+    marginTop: 10,
+    marginBottom: 4,
+    fontFamily: 'Poppins-SemiBold',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#DDD',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#333',
+    backgroundColor: '#FFF',
+  },
+  botoesRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 14,
+  },
+  btnCancelar: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#CFD8CF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF',
+  },
+  btnCancelarTxt: {
+    color: '#7A8A7C',
+    fontSize: 14,
+    fontFamily: 'Poppins-SemiBold',
+  },
+  btnSalvar: {
+    flex: 2,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#255336',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnSalvarTxt: {
+    color: '#FFF',
+    fontSize: 14,
+    fontFamily: 'Poppins-SemiBold',
+  },
 })

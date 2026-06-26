@@ -303,6 +303,58 @@ export interface ApiError {
   detalhes?: unknown;
 }
 
+// ────────── Notificações in-app ──────────
+
+export type TipoNotificacao =
+  | "PEDIDO_CONFIRMADO"
+  | "PEDIDO_STATUS_MUDOU"
+  | "CHAT_NOVA_MENSAGEM"
+  | "PROMOCAO"
+  | "SISTEMA";
+
+export interface Notificacao {
+  id: number;
+  usuario_id: string;
+  tipo: TipoNotificacao;
+  titulo: string;
+  corpo: string;
+  /** Payload livre — usado pra deep link (target) e dados auxiliares. */
+  payload?: {
+    pedido_id?: number;
+    status?: StatusPedido;
+    target?: string;
+    [k: string]: unknown;
+  } | null;
+  lida: boolean;
+  createdAt: string;
+}
+
+// ────────── Dashboard: produtos a separar ──────────
+
+/** Detalhe de qual pedido demanda quanto daquela mercadoria. */
+export interface ProdutoASepararPedido {
+  pedido_id: number;
+  cliente_nome: string;
+  quantidade: number;
+}
+
+/** Linha agregada por mercadoria — quantidade total + breakdown. */
+export interface ProdutoASeparar {
+  mercadoria_id: number;
+  nome: string;
+  foto: string;
+  unidade: Unidade | string;
+  categoria: Categoria | string;
+  quantidadeTotal: number;
+  pedidos: ProdutoASepararPedido[];
+}
+
+/** Resposta do GET /dashboard/produtos-a-separar. */
+export interface ProdutosASepararResposta {
+  pedidosConsiderados: number;
+  produtos: ProdutoASeparar[];
+}
+
 // ────────── Chat cliente ↔ feirante (por pedido) ──────────
 
 export type RemetenteChat = "CLIENTE" | "FEIRANTE";

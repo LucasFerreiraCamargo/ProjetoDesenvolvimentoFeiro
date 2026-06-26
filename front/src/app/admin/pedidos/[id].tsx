@@ -17,6 +17,30 @@ import ConfirmModal from '../../../components/admin/ConfirmModal'
 import StatusBadge from '../../../components/admin/StatusBadge'
 import { useAdmin, useAdminGuard, useAdminTitulo } from '../../../contexts/AdminContext'
 import { adminFetch } from '../../../utils/adminApi'
+import type { PedidoItem, Unidade } from '../../../types/api'
+
+// Fallback usado quando a mercadoria não tem foto cadastrada.
+const IMAGEM_PADRAO_PRODUTO = require('../../../../assets/images/produto-padrao.png')
+
+/** Formata a quantidade respeitando a unidade da mercadoria.
+ *   - UN/CX  → "2 unids" / "3 cxs"
+ *   - KG     → "0,500 kg" (3 casas para refletir gramas com precisão)
+ */
+function formatarQuantidade(qtd: number, unidade?: Unidade | string | null): string {
+  const u = String(unidade ?? 'UN').toUpperCase()
+  if (u === 'KG') {
+    return `${qtd.toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg`
+  }
+  if (u === 'CX') {
+    return `${qtd.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} ${qtd === 1 ? 'cx' : 'cxs'}`
+  }
+  return `${qtd.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} ${qtd === 1 ? 'unid' : 'unids'}`
+}
+
+/** Formata em moeda BRL ("R$ 12,90"). */
+function fmtMoeda(v: number): string {
+  return `R$ ${v.toFixed(2).replace('.', ',')}`
+}
 
 /**
  * Converte um telefone do banco (pode vir com máscara) num número
@@ -231,15 +255,19 @@ export default function PedidoDetalhe() {
     )
   }
 
-  const total =
-    pedido.itens?.reduce((acc: number, item: any) => {
-      return (
-        acc +
-        Number(item.preco || item.preco_unitario || 0) *
-          Number(item.quantidade || 1)
-      )
-    }, 0) ??
-    Number(pedido.valor_total ?? pedido.total ?? 0)
+  // Soma dos subtotais dos itens (qtd × preço_unitário). Quando o pedido
+  // não tem `items` ainda, cai pro `valor_total` retornado pela API.
+  const itensPedido: PedidoItem[] = (pedido.items ?? pedido.itens ?? []) as PedidoItem[]
+  const somaItens = itensPedido.reduce((acc: number, item: PedidoItem) => {
+    const preco = Number(item.preco_unitario ?? 0)
+    const qtd = Number(item.quantidade ?? 0)
+    return acc + preco * qtd
+  }, 0)
+  const valorPedido = Number(pedido.valor_total ?? 0)
+  // Discrepância: soma calculada vs valor_total persistido no banco.
+  // Tolerância de 1 centavo pra arredondamentos Decimal.
+  const discrepancia =
+    itensPedido.length > 0 && Math.abs(somaItens - valorPedido) > 0.01
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -316,56 +344,81 @@ export default function PedidoDetalhe() {
         );
       })()}
 
-      {pedido.itens && pedido.itens.length > 0 && (
+      {itensPedido.length > 0 && (
         <View style={styles.card}>
-          <Text style={styles.secaoTitulo}>Itens do Pedido</Text>
-          {pedido.itens.map((item: any, i: number) => {
-            const foto = item.mercadoria?.foto || item.foto || null
-            const emoji = item.mercadoria?.emoji ?? item.emoji ?? null
+          <View style={styles.secaoHeaderRow}>
+            <Text style={styles.secaoTitulo}>Itens do Pedido</Text>
+            <Text style={styles.secaoContador}>
+              {itensPedido.length}{' '}
+              {itensPedido.length === 1 ? 'item' : 'itens'}
+            </Text>
+          </View>
+
+          {itensPedido.map((item: PedidoItem, i: number) => {
+            const merc = item.mercadoria
+            const foto = merc?.foto ?? null
+            const nome = merc?.nome ?? `Mercadoria #${item.mercadoria_id}`
+            const unidade = merc?.unidade ?? 'UN'
+            const precoUnit = Number(item.preco_unitario ?? 0)
+            const qtd = Number(item.quantidade ?? 0)
+            const subtotal = precoUnit * qtd
+            // Sufixo de unidade pro preço unitário: "/kg" ou "/un"
+            const sufixoPreco =
+              String(unidade).toUpperCase() === 'KG'
+                ? '/kg'
+                : String(unidade).toUpperCase() === 'CX'
+                ? '/cx'
+                : '/un'
+
             return (
               <View key={i} style={styles.itemRow}>
-                {/* Miniatura: foto se houver, senão emoji do produto, senão ícone genérico */}
-                {foto ? (
-                  <Image
-                    source={{ uri: foto }}
-                    style={styles.itemThumb}
-                    resizeMode="cover"
-                  />
-                ) : emoji ? (
-                  <View style={styles.itemThumbFallback}>
-                    <Text style={styles.itemEmoji}>{emoji}</Text>
-                  </View>
-                ) : (
-                  <View style={styles.itemThumbFallback}>
-                    <Ionicons name="leaf-outline" size={22} color="#999" />
-                  </View>
-                )}
+                <Image
+                  source={foto ? { uri: foto } : IMAGEM_PADRAO_PRODUTO}
+                  style={styles.itemThumb}
+                  resizeMode="cover"
+                />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.itemNome}>
-                    {item.mercadoria?.nome ?? item.nome ?? '—'}
+                  <Text style={styles.itemNome} numberOfLines={1}>
+                    {nome}
+                  </Text>
+                  <Text style={styles.itemQtdLinha}>
+                    {formatarQuantidade(qtd, unidade)}
                   </Text>
                   <Text style={styles.itemPrecoUnit}>
-                    R$ {Number(item.preco || item.preco_unitario || 0).toFixed(2)}/
-                    {item.unidade ?? 'un'}
+                    {fmtMoeda(precoUnit)}
+                    {sufixoPreco}
                   </Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={styles.itemQtd}>{item.quantidade ?? 1}x</Text>
-                  <Text style={styles.itemTotal}>
-                    R${' '}
-                    {(
-                      Number(item.preco || item.preco_unitario || 0) *
-                      Number(item.quantidade || 1)
-                    ).toFixed(2)}
-                  </Text>
+                  <Text style={styles.itemSubtotalLabel}>Subtotal</Text>
+                  <Text style={styles.itemTotal}>{fmtMoeda(subtotal)}</Text>
                 </View>
               </View>
             )
           })}
+
+          {/* Soma dos itens (computada) */}
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValor}>R$ {total.toFixed(2)}</Text>
+            <Text style={styles.totalLabel}>Total dos itens</Text>
+            <Text style={styles.totalValor}>{fmtMoeda(somaItens)}</Text>
           </View>
+
+          {/* Aviso quando a soma calculada não bate com o `valor_total`
+              persistido (defesa contra pedidos com items desatualizados). */}
+          {discrepancia && (
+            <View style={styles.discrepanciaBox}>
+              <Ionicons
+                name="alert-circle-outline"
+                size={16}
+                color="#A66A00"
+              />
+              <Text style={styles.discrepanciaTexto}>
+                A soma calculada ({fmtMoeda(somaItens)}) não bate com o valor
+                registrado no pedido ({fmtMoeda(valorPedido)}). Verifique os
+                itens antes de finalizar.
+              </Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -567,7 +620,50 @@ const styles = StyleSheet.create({
   itemNome: { fontSize: 14, fontFamily: 'Poppins-SemiBold', color: '#333333' },
   itemPrecoUnit: { fontSize: 12, fontFamily: 'Poppins-Regular', color: '#666666' },
   itemQtd: { fontSize: 13, fontFamily: 'Poppins-Regular', color: '#666666' },
+  itemQtdLinha: {
+    fontSize: 13,
+    fontFamily: 'Poppins-SemiBold',
+    color: '#4A7C59',
+    marginBottom: 1,
+  },
+  itemSubtotalLabel: {
+    fontSize: 10,
+    fontFamily: 'Poppins-Regular',
+    color: '#999999',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
   itemTotal: { fontSize: 14, fontFamily: 'Poppins-SemiBold', color: '#255336' },
+  // Cabeçalho da seção "Itens do Pedido" com contador à direita
+  secaoHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  secaoContador: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Regular',
+    color: '#999999',
+  },
+  // Banner amarelo de aviso quando a soma calculada não bate com valor_total
+  discrepanciaBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#FFF8E6',
+    borderWidth: 1,
+    borderColor: '#F2D88D',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 10,
+  },
+  discrepanciaTexto: {
+    flex: 1,
+    fontSize: 12,
+    color: '#7A4F00',
+    lineHeight: 16,
+  },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native'
 import { NIVEL_MINIMO_ADMIN_AREA, useAdmin } from '../../contexts/AdminContext'
+import BotaoVoltar from '../../components/BotaoVoltar'
 
 export default function AdminLogin() {
   const router = useRouter()
@@ -49,6 +50,9 @@ export default function AdminLogin() {
 
   return (
     <View style={styles.container}>
+      {/* Fallback do botão Voltar: área do cliente. Se o feirante abriu o
+          login admin direto (deep link) e desistir, vai pra home pública. */}
+      <BotaoVoltar destinoFallback="/home" />
       <View style={styles.logoContainer}>
         <Image
           source={require('../../../assets/images/logo.png')}

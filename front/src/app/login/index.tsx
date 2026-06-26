@@ -11,6 +11,7 @@ import {
   View,
   ActivityIndicator, // <--- 1. Importado aqui
 } from "react-native";
+import BotaoVoltar from "../../components/BotaoVoltar";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -78,6 +79,7 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
+      <BotaoVoltar destinoFallback="/" />
       {/* Logo */}
       <View style={styles.logoContainer}>
         <Image

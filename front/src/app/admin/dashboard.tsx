@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import React, { useEffect, useState } from 'react'
 import { useAdminTitulo } from '../../contexts/AdminContext'
@@ -179,6 +180,27 @@ export default function Dashboard() {
             )}
           </View>
 
+          {/* Atalho de produção: leva ao agregado de mercadorias a separar
+              dos pedidos em aberto. Usado pelo feirante pra separar tudo
+              de uma vez (fresquinho) e depois montar pedido a pedido. */}
+          <TouchableOpacity
+            style={styles.atalhoSeparar}
+            onPress={() => router.push('/admin/produtos-a-separar' as any)}
+            activeOpacity={0.85}
+          >
+            <View style={styles.atalhoIcone}>
+              <Ionicons name="leaf" size={22} color="#FFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.atalhoTitulo}>Produtos a Separar</Text>
+              <Text style={styles.atalhoSub}>
+                Veja a soma das mercadorias dos pedidos em aberto e separe tudo
+                de uma vez
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#FFF" />
+          </TouchableOpacity>
+
           <Text style={styles.secaoTitulo}>Pedidos Recentes</Text>
           {pedidosRecentes.length === 0 ? (
             <Text style={styles.vazio}>Nenhum pedido encontrado</Text>
@@ -229,6 +251,42 @@ const styles = StyleSheet.create({
   statsGrid: { gap: 12, marginBottom: 24 },
   statsRow: { flexDirection: 'row' },
   statsGap: { width: 12 },
+
+  // Atalho "Produtos a Separar" — destaque verde antes da seção de pedidos.
+  atalhoSeparar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#4A7C59',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 24,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+  atalhoIcone: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  atalhoTitulo: {
+    fontSize: 15,
+    fontFamily: 'Poppins-SemiBold',
+    color: '#FFFFFF',
+  },
+  atalhoSub: {
+    fontSize: 12,
+    color: '#E8F5E8',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+
   secaoTitulo: {
     fontSize: 18,
     fontFamily: 'Poppins-SemiBold',

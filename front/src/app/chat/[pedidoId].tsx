@@ -11,7 +11,7 @@
  */
 
 import { Ionicons } from "@expo/vector-icons";
-import { router, Stack, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import * as React from "react";
 import {
   ActivityIndicator,
@@ -177,25 +177,42 @@ const ChatScreen: React.FC = () => {
     );
   }
 
+  // Decide para onde voltar quando o usuário tocar no chevron-back.
+  // - Se há histórico, volta natural (sucessor padrão do iOS/Android).
+  // - Senão: feirante volta pro detalhe do pedido na área admin; cliente
+  //   volta pro acompanhar-pedido. Diferenciamos pelo token presente.
+  function voltar() {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    const destino = admin?.token
+      ? `/admin/pedidos/${pedidoId}`
+      : `/acompanhar-pedido/${pedidoId}`;
+    router.replace(destino as any);
+  }
+
   return (
     <View style={styles.container}>
-      <Stack.Screen
-        options={{
-          title: `Pedido #${pedidoId}`,
-          headerStyle: { backgroundColor: "#FFF" },
-          headerTitleStyle: {
-            fontSize: 16,
-            fontFamily: "Poppins-SemiBold",
-            color: "#255336",
-          },
-          headerTintColor: "#255336",
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ paddingHorizontal: 8 }}>
-              <Ionicons name="arrow-back" size={22} color="#255336" />
-            </TouchableOpacity>
-          ),
-        }}
-      />
+      {/* Header inline — funciona em ambos os fluxos (cliente e feirante)
+          porque a tela é fullscreen no _layout raiz (sem Stack envolvendo,
+          então Stack.Screen aqui seria ignorado). */}
+      <View style={styles.headerInline}>
+        <TouchableOpacity
+          onPress={voltar}
+          style={styles.headerBackBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Voltar"
+          hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+        >
+          <Ionicons name="arrow-back" size={22} color="#255336" />
+        </TouchableOpacity>
+        <Text style={styles.headerInlineTitulo} numberOfLines={1}>
+          Pedido #{pedidoId}
+        </Text>
+        {/* Espaço-reservado simétrico pro título ficar centralizado */}
+        <View style={styles.headerBackBtn} />
+      </View>
 
       {carregando ? (
         <View style={styles.centro}>
@@ -274,6 +291,34 @@ const ChatScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F7F9F7" },
   centro: { flex: 1, alignItems: "center", justifyContent: "center" },
+
+  // Header inline da tela de chat — substitui o Stack.Screen header
+  // padrão (que era ignorado porque o layout raiz usa Slot, não Stack).
+  headerInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFF",
+    paddingTop: Platform.OS === "ios" ? 50 : 30,
+    paddingBottom: 12,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EAEFEA",
+  },
+  headerBackBtn: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 20,
+  },
+  headerInlineTitulo: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 16,
+    fontFamily: "Poppins-SemiBold",
+    color: "#255336",
+  },
   lista: { padding: 12, paddingBottom: 20 },
 
   vazio: { alignItems: "center", paddingTop: 60 },

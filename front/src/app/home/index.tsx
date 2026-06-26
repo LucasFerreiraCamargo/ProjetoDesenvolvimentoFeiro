@@ -221,9 +221,18 @@ const CardProduto = ({ item }: { item: any }) => {
   const { state } = useApp();
 
   const navegarParaProduto = () => {
-    // Caminho preferido: produto vindo da API já traz feiranteId
+    // Passa `destaque=item.id` pra tela do feirante posicionar o produto
+    // que o cliente clicou no TOPO da lista (mesmo padrão usado na busca
+    // e nas categorias — comportamento agora consistente).
+    // Caminho preferido: produto vindo da API já traz feiranteId.
     if (item.feiranteId != null) {
-      router.push(`/produtos/${item.feiranteId}`);
+      router.push({
+        pathname: "/produtos/[feirante]",
+        params: {
+          feirante: String(item.feiranteId),
+          destaque: String(item.id),
+        },
+      });
       return;
     }
 
@@ -242,7 +251,13 @@ const CardProduto = ({ item }: { item: any }) => {
       if (feiranteEncontrado) break;
     }
     if (feiranteEncontrado) {
-      router.push(`/produtos/${feiranteEncontrado.id}`);
+      router.push({
+        pathname: "/produtos/[feirante]",
+        params: {
+          feirante: String(feiranteEncontrado.id),
+          destaque: String(item.id),
+        },
+      });
     } else {
       console.warn("Feirante não encontrado para produto:", item.id);
     }

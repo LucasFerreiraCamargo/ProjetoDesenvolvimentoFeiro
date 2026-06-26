@@ -19,30 +19,52 @@ export default function RootLayout() {
 
   const pathname = usePathname();
 
-  // Páginas que não devem ter header e nav
-  const pagesWithoutHeaderNav = ["/", "/login", "/onboarding"];
+  // Telas fullscreen — sem header e sem navbar global. Duas listas:
+  //   - exact: match exato de pathname
+  //   - prefix: pathname começa com (rota dinâmica)
+  //
+  // Por que pedido-confirmado: como o cliente acabou de finalizar, vamos
+  // forçá-lo a usar os CTAs explícitos da tela ('Acompanhar', 'Ver meus
+  // pedidos', 'Voltar') em vez de cair por engano em 'Recorrente' da navbar.
+  //
+  // Por que /chat: a tela é COMPARTILHADA entre cliente e feirante. Com a
+  // navbar do cliente aparecendo, o feirante vinha da área admin e ficava
+  // com a UI errada. Solução: chat é fullscreen com seu próprio Stack.Screen
+  // header — válido pros dois lados.
+  const pagesWithoutHeaderNav = [
+    "/",
+    "/login",
+    "/onboarding",
+    "/pedido-confirmado",
+  ];
+  const prefixesWithoutHeaderNav = ["/chat"];
   const isAdminRoute = pathname.startsWith("/admin");
 
   // Páginas que têm header customizado (apenas cesta)
   const pagesWithCustomHeader = ["/cesta"];
   const hasCustomHeader = pagesWithCustomHeader.includes(pathname);
 
-  const shouldShowHeaderNav = !pagesWithoutHeaderNav.includes(pathname) && !isAdminRoute;
+  const isPaginaSemHeaderNav =
+    pagesWithoutHeaderNav.includes(pathname) ||
+    prefixesWithoutHeaderNav.some((p) => pathname.startsWith(p));
+  const shouldShowHeaderNav = !isPaginaSemHeaderNav && !isAdminRoute;
 
   // Onde NÃO mostrar a cestinha flutuante. Lista por que cada uma:
   //  - /cesta/*       → já estamos vendo a cesta
   //  - /finalizapedido → estamos finalizando, botão repetido confunde
   //  - /pedido-confirmado → pedido fechado, cesta já foi limpa
+  //  - /chat/*        → tela compartilhada cliente+feirante, não faz sentido
   //  - /login, /, /onboarding → sem usuário logado
   //  - rotas admin → não tem fluxo de cesta
   const pagesWithoutFloatingCart = [
     "/cesta/cesta",
     "/finalizapedido",
     "/pedido-confirmado",
+    "/chat",
   ];
   const shouldShowFloatingCart =
     !isAdminRoute &&
-    !pagesWithoutHeaderNav.includes(pathname) &&
+    !isPaginaSemHeaderNav &&
     !pagesWithoutFloatingCart.some((p) => pathname.startsWith(p));
 
   if (!fontsLoaded) {

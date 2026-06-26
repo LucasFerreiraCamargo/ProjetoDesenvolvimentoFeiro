@@ -33,8 +33,12 @@ type ResultadoBusca = {
   imagem?: string;
   emoji?: string;
   desconto?: string;
-  // Para produtos: o id do feirante dono, usado para navegar
+  // Para produtos: o id do feirante dono, usado para navegar e exibir.
   feiranteId?: number | null;
+  /** Nome do feirante — exibido no card pra deixar claro de quem é o produto. */
+  feiranteNome?: string | null;
+  /** Nome da banca (se houver) — usado como subtítulo do feirante. */
+  feiranteBanca?: string | null;
 };
 
 // Estoque mínimo para o produto aparecer à venda (mesma regra da home)
@@ -57,6 +61,9 @@ function mercadoriaParaResultado(m: any): ResultadoBusca {
     ? Math.round(((preco - pp!) / preco) * 100)
     : null;
 
+  const feiranteId = m.feirante_id ?? m.feirante?.id ?? null;
+  const feiranteNome = m.feirante?.nome ?? null;
+  const feiranteBanca = m.feirante?.banca ?? null;
   return {
     id: String(m.id),
     tipo: "produto",
@@ -68,17 +75,23 @@ function mercadoriaParaResultado(m: any): ResultadoBusca {
     imagem: m.foto || undefined,
     emoji: m.emoji ?? undefined,
     desconto: pctDesconto != null ? `${pctDesconto}% OFF` : undefined,
-    feiranteId: m.feirante_id ?? m.feirante?.id ?? null,
+    feiranteId,
+    feiranteNome,
+    feiranteBanca,
   };
 }
 
 const BuscaScreen = () => {
   const router = useRouter();
-  const { q, categoria } = useLocalSearchParams();
+  const { q, categoria, promo } = useLocalSearchParams();
   const termoBusca = Array.isArray(q) ? q[0] : q || "";
   const categoriaParam = Array.isArray(categoria)
     ? categoria[0]
     : categoria || "";
+  // Filtro de promoção: vem das notificações de PROMOCAO (target=/busca?promo=true).
+  // Quando ativo, mistura produtos com `preco_promocional` e cestas com `desconto > 0`.
+  const promoParam = Array.isArray(promo) ? promo[0] : promo || "";
+  const filtroPromoAtivo = String(promoParam).toLowerCase() === "true";
   const [resultados, setResultados] = useState<ResultadoBusca[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [textoBusca, setTextoBusca] = useState(termoBusca);
@@ -167,10 +180,18 @@ const BuscaScreen = () => {
     };
   }, []);
 
-  // Re-executa o filtro quando os caches chegarem ou o termo mudar
+  // Re-executa o filtro quando os caches chegarem ou os params mudarem.
+  // Prioridade dos filtros (mais específico → mais genérico):
+  //   1. ?promo=true            → mistura produtos + cestas em promoção
+  //   2. categoria=promocoes    → só produtos em promoção (caminho legado da home)
+  //   3. categoria=cestas       → todas as cestas
+  //   4. categoria=N            → categoria de produtos
+  //   5. q=termo                → busca textual
   useEffect(() => {
     if (carregandoMercadorias || carregandoCestas) return;
-    if (categoriaParam === "promocoes") {
+    if (filtroPromoAtivo) {
+      carregarPromocoesGerais();
+    } else if (categoriaParam === "promocoes") {
       carregarPromocoes();
     } else if (categoriaParam === "cestas") {
       carregarCestas();
@@ -184,6 +205,7 @@ const BuscaScreen = () => {
   }, [
     termoBusca,
     categoriaParam,
+    filtroPromoAtivo,
     mercadoriasApi,
     cestasApi,
     carregandoMercadorias,
@@ -226,6 +248,36 @@ const BuscaScreen = () => {
       .map(mercadoriaParaResultado);
     setResultados(promocoes);
     setCarregando(false);
+  };
+
+  /**
+   * Carrega TUDO que está em promoção — produtos (preco_promocional) e cestas
+   * (desconto > 0). Usado pelo deep link das notificações de PROMOCAO
+   * (target=/busca?promo=true). Produtos aparecem primeiro, cestas depois.
+   */
+  const carregarPromocoesGerais = () => {
+    setCarregando(true);
+
+    const produtosPromo = produtosDisponiveis()
+      .filter((m) => {
+        const pp =
+          m.preco_promocional != null ? Number(m.preco_promocional) : null;
+        return pp != null && pp > 0 && pp < Number(m.preco ?? 0);
+      })
+      .map(mercadoriaParaResultado);
+
+    const cestasPromo = cestasApi
+      .filter((c: any) => Number(c?.desconto ?? 0) > 0)
+      .filter((c: any) => feiranteAtendeCliente(c?.feirante, clienteCoords))
+      .map(cestaParaResultado);
+
+    setResultados([...produtosPromo, ...cestasPromo]);
+    setCarregando(false);
+  };
+
+  /** Limpa o filtro de promoção mantendo termo de busca/categoria se houver. */
+  const limparFiltroPromo = () => {
+    router.setParams({ promo: undefined } as any);
   };
 
   const carregarCestas = () => {
@@ -296,9 +348,17 @@ const BuscaScreen = () => {
         router.push(`/feirantes/${item.id}`);
         break;
       case "produto":
-        // Caminho preferido: item da API já traz feiranteId
+        // Caminho preferido: item da API já traz feiranteId.
+        // Passa `destaque=item.id` pra tela do feirante destacar o produto
+        // que o cliente clicou no topo da lista.
         if (item.feiranteId != null) {
-          router.push(`/produtos/${item.feiranteId}`);
+          router.push({
+            pathname: "/produtos/[feirante]",
+            params: {
+              feirante: String(item.feiranteId),
+              destaque: String(item.id),
+            },
+          });
           return;
         }
         // Fallback no mock (caso o item venha de algum lugar antigo)
@@ -313,7 +373,13 @@ const BuscaScreen = () => {
           if (feiranteEncontrado) break;
         }
         if (feiranteEncontrado) {
-          router.push(`/produtos/${feiranteEncontrado.id}`);
+          router.push({
+            pathname: "/produtos/[feirante]",
+            params: {
+              feirante: String(feiranteEncontrado.id),
+              destaque: String(item.id),
+            },
+          });
         } else {
           console.warn("Feirante não encontrado para produto:", item.id);
         }
@@ -343,6 +409,8 @@ const BuscaScreen = () => {
   };
 
   const getTituloCategoria = () => {
+    // Filtro genérico de promoção (vem das notificações)
+    if (filtroPromoAtivo) return "Promoções do Dia 🏷️";
     if (categoriaParam === "promocoes") return "Promoções do Dia";
     if (categoriaParam === "cestas") return "Cestas em Oferta";
 
@@ -398,6 +466,23 @@ const BuscaScreen = () => {
         <View style={styles.resultadoInfo}>
           <Text style={styles.resultadoNome}>{item.nome}</Text>
           <Text style={styles.resultadoDescricao}>{item.descricao}</Text>
+          {/* Para produtos: feirante (e ID) — regra do app é 1 pedido = 1 feirante,
+              então o cliente precisa enxergar de quem está comprando. */}
+          {item.tipo === "produto" && item.feiranteNome && (
+            <View style={styles.feiranteLinha}>
+              <Ionicons name="storefront-outline" size={12} color="#4A7C59" />
+              <Text style={styles.feiranteText} numberOfLines={1}>
+                {item.feiranteBanca
+                  ? `${item.feiranteNome} • ${item.feiranteBanca}`
+                  : item.feiranteNome}
+              </Text>
+              {item.feiranteId != null && (
+                <View style={styles.feiranteIdChip}>
+                  <Text style={styles.feiranteIdText}>#{item.feiranteId}</Text>
+                </View>
+              )}
+            </View>
+          )}
           {item.localizacao && (
             <Text style={styles.resultadoLocalizacao}>
               📍 {item.localizacao}
@@ -443,8 +528,24 @@ const BuscaScreen = () => {
         </View>
       )}
 
+      {/* Chip dispensável do filtro de promoção (vindo das notificações) */}
+      {filtroPromoAtivo && (
+        <View style={styles.promoChipsRow}>
+          <View style={styles.promoChip}>
+            <Ionicons name="pricetag" size={12} color="#7A4F00" />
+            <Text style={styles.promoChipTexto}>Apenas em promoção</Text>
+            <TouchableOpacity
+              onPress={limparFiltroPromo}
+              hitSlop={{ top: 6, right: 6, bottom: 6, left: 6 }}
+            >
+              <Ionicons name="close-circle" size={14} color="#7A4F00" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {/* Termo de busca */}
-      {(termoBusca || categoriaParam) && (
+      {(termoBusca || categoriaParam || filtroPromoAtivo) && (
         <View style={styles.termoBuscaContainer}>
           <Text style={styles.totalResultados}>
             {resultados.length} resultado{resultados.length !== 1 ? "s" : ""}{" "}
@@ -472,7 +573,9 @@ const BuscaScreen = () => {
         <View style={styles.semResultadosContainer}>
           <Ionicons name="search-outline" size={48} color="#999" />
           <Text style={styles.semResultadosText}>
-            {categoriaParam
+            {filtroPromoAtivo
+              ? "Nenhuma promoção disponível no momento"
+              : categoriaParam
               ? "Nenhum item encontrado nesta categoria"
               : textoBusca
               ? `Nenhum resultado encontrado para "${textoBusca}"`
@@ -527,6 +630,29 @@ const styles = StyleSheet.create({
   termoBuscaContainer: {
     paddingHorizontal: 20,
     marginBottom: 16,
+  },
+  // Chip dispensável "Apenas em promoção" — aparece quando o usuário entra
+  // na busca via notificação de PROMOCAO (?promo=true).
+  promoChipsRow: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  promoChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFF8E6",
+    borderWidth: 1,
+    borderColor: "#F2D88D",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  promoChipTexto: {
+    fontSize: 12,
+    color: "#7A4F00",
+    fontWeight: "600",
   },
   termoBusca: {
     fontSize: 16,
@@ -622,6 +748,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#999",
     marginBottom: 4,
+  },
+  // Linha com nome do feirante + chip do ID — torna explícito de qual
+  // feirante o produto vem (regra do app: 1 pedido = 1 feirante).
+  feiranteLinha: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
+  feiranteText: {
+    flex: 1,
+    fontSize: 12,
+    color: "#4A7C59",
+    fontWeight: "600",
+  },
+  feiranteIdChip: {
+    backgroundColor: "#E8F5E8",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  feiranteIdText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#255336",
   },
   resultadoPreco: {
     fontSize: 16,

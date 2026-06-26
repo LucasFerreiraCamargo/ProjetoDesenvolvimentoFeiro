@@ -23,6 +23,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useCesta } from "../../contexts/CestaContext";
 
 type Params = {
   id?: string;
@@ -35,6 +36,16 @@ type Params = {
 
 export default function PedidoConfirmadoScreen() {
   const raw = useLocalSearchParams<Params>();
+  // Reset preventivo do flag de cesta recorrente — evita que estado residual
+  // de fluxos anteriores (cliente clicou "Tornar cesta recorrente" antes)
+  // afete a navegação a partir desta tela.
+  const { state: cestaState, resetarCestaRecorrente } = useCesta();
+  React.useEffect(() => {
+    if (cestaState.cestaRecorrenteId != null) {
+      resetarCestaRecorrente();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // useLocalSearchParams pode devolver string ou string[]; normaliza.
   const pick = (v: string | string[] | undefined): string =>
@@ -142,16 +153,39 @@ export default function PedidoConfirmadoScreen() {
         </View>
 
         <View style={styles.buttonsContainer}>
-          {/* Acompanhar — só quando há entrega E o id é válido */}
-          {ehEntrega && idStr ? (
+          {/* Acompanhar Pedido — primário, sempre que há um id válido.
+              Pra entrega no endereço, mostra trajeto/etapas; pra retirada
+              na feira, mostra o status atual do pedido (mesma tela). */}
+          {idStr ? (
             <TouchableOpacity
               style={styles.primaryButton}
-              onPress={() => router.push(`/acompanhar-pedido/${idStr}` as any)}
+              onPress={() =>
+                router.push({
+                  pathname: "/acompanhar-pedido/[id]",
+                  params: { id: idStr },
+                })
+              }
             >
-              <Ionicons name="car" size={20} color="#FFF" />
+              <Ionicons
+                name={ehEntrega ? "car" : "storefront"}
+                size={20}
+                color="#FFF"
+              />
               <Text style={styles.primaryButtonText}>Acompanhar Pedido</Text>
             </TouchableOpacity>
           ) : null}
+
+          {/* Meus Pedidos — secundário (sempre visível). Dá uma rota direta
+              caso o cliente queira ver histórico em vez de o pedido específico,
+              e elimina a tentação de buscar isso pela navbar (que tem
+              'Recorrente' → /minhas-cestas, fácil de confundir). */}
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => router.push("/meus-pedidos")}
+          >
+            <Ionicons name="receipt-outline" size={20} color="#2D5D31" />
+            <Text style={styles.secondaryButtonText}>Ver meus pedidos</Text>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.secondaryButton}
