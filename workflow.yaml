@@ -18,5 +18,5 @@ jobs:
 
       - name: Push mirror para o GitLab
         run: |
-          git remote add gitlab https://oauth2:${{ glpat-13OGq1o9dXrG9Hc4tPzFhGM6MQpvOjEKdTpoODUwdQ8.01.170sa6ctk }}@gitlab.com/projeto-desenvolvimento-2/2026-1-ygor-lucas.git
+          git remote add gitlab https://oauth2:${{ secrets.GITLAB_TOKEN }}@gitlab.com/projeto-desenvolvimento-2/2026-1-ygor-lucas.git
           git push gitlab --mirror
