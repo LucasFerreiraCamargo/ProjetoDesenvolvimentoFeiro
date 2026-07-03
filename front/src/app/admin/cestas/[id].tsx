@@ -5,9 +5,11 @@ import React, { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Image,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native'
@@ -18,6 +20,20 @@ import { adminFetch } from '../../../utils/adminApi'
 import type { CategoriaCesta } from '../../../types/api'
 
 type TipoDesconto = 'nenhum' | 'percentual' | 'valor'
+
+/**
+ * Item da cesta no editor: linha com quantidade e valor unitário PRÓPRIOS
+ * (o valor praticado dentro da cesta pode diferir do preço avulso da
+ * mercadoria). `precoAvulso` fica guardado só como referência/sugestão.
+ */
+type ItemEditavel = {
+  mercadoria_id: number
+  nome: string
+  emoji?: string | null
+  precoAvulso: number
+  quantidade: string
+  valorUnitario: string
+}
 
 // Imagem padrão exibida no preview quando a cesta não tem foto.
 // IMPORTANTE: salve um PNG quadrado em assets/images/cesta-padrao.png pra que apareça.
@@ -44,6 +60,17 @@ function formatBRL(n: number): string {
   return `R$ ${n.toFixed(2).replace('.', ',')}`
 }
 
+/** Lê um campo numérico em string PT-BR ("3,5") como number. */
+function num(v: string | number | null | undefined): number {
+  const n = Number(String(v ?? '').replace(',', '.'))
+  return Number.isFinite(n) ? n : 0
+}
+
+/** Soma dos itens = Σ (quantidade × valor unitário na cesta). */
+function somaDe(itens: ItemEditavel[]): number {
+  return itens.reduce((acc, it) => acc + num(it.quantidade) * num(it.valorUnitario), 0)
+}
+
 /** Aplica o desconto sobre a soma e devolve o preço final (nunca negativo). */
 function calcularPrecoFinal(soma: number, tipo: TipoDesconto, valor: number): number {
   if (soma <= 0) return 0
@@ -68,21 +95,18 @@ function serializarDescontoEmValor(
   valor: string,
   somaItens: number
 ): number | undefined {
-  const num = Number(String(valor).replace(',', '.'))
-  if (!Number.isFinite(num) || num <= 0 || tipo === 'nenhum') return undefined
+  const n = num(valor)
+  if (n <= 0 || tipo === 'nenhum') return undefined
   if (tipo === 'percentual') {
     if (somaItens <= 0) return undefined // sem itens não dá pra calcular o %
-    return Number(((somaItens * num) / 100).toFixed(2))
+    return Number(((somaItens * n) / 100).toFixed(2))
   }
-  return Number(num.toFixed(2))
+  return Number(n.toFixed(2))
 }
 
 /**
  * Lê o desconto vindo da API (idealmente number, mas tolerante a string legada
  * tipo "10% OFF" ou "R$ 5,00 OFF") e devolve tipo + valor pra UI.
- *
- * Após a migração do banco para Decimal, o caminho feliz é receber um número
- * direto (ou string numérica do Prisma) — vira sempre `tipo: 'valor'`.
  */
 function parsearDescontoApi(raw: unknown): {
   tipo: TipoDesconto
@@ -91,10 +115,10 @@ function parsearDescontoApi(raw: unknown): {
   if (raw == null || raw === '') return { tipo: 'nenhum', valor: '' }
 
   // Caminho novo: number ou string numérica ("10.50") vinda do Decimal
-  const num = typeof raw === 'number' ? raw : Number(String(raw).replace(',', '.'))
-  if (Number.isFinite(num)) {
-    return num > 0
-      ? { tipo: 'valor', valor: num.toFixed(2) }
+  const n = typeof raw === 'number' ? raw : Number(String(raw).replace(',', '.'))
+  if (Number.isFinite(n)) {
+    return n > 0
+      ? { tipo: 'valor', valor: n.toFixed(2) }
       : { tipo: 'nenhum', valor: '' }
   }
 
@@ -133,20 +157,22 @@ export default function CestaDetalhe() {
   const [categoria, setCategoria] = useState<CategoriaCesta | ''>('')
   const [imagemUrl, setImagemUrl] = useState('')
   const [feiranteId, setFeiranteId] = useState<number | null>(null)
-  const [mercSelecionadas, setMercSelecionadas] = useState<number[]>([])
 
-  // Soma dos preços das mercadorias selecionadas (preço "de cadastro" / valor de mercado)
-  const somaItens = useMemo(() => {
-    return mercadoriasDispo
-      .filter((m: any) => mercSelecionadas.includes(m.id))
-      .reduce((acc: number, m: any) => acc + Number(m.preco ?? 0), 0)
-  }, [mercadoriasDispo, mercSelecionadas])
+  // Itens da cesta (formato novo: qtd + valor unitário por item)
+  const [itensCesta, setItensCesta] = useState<ItemEditavel[]>([])
+  const [modalVisible, setModalVisible] = useState(false)
+
+  // Soma dos itens = Σ (qtd × valor unitário na cesta)
+  const somaItens = useMemo(() => somaDe(itensCesta), [itensCesta])
+
+  // Mercadorias do feirante ainda não adicionadas (alimentam o pop-up)
+  const mercadoriasParaAdicionar = useMemo(
+    () => mercadoriasDispo.filter((m: any) => !itensCesta.some((it) => it.mercadoria_id === m.id)),
+    [mercadoriasDispo, itensCesta]
+  )
 
   // Preço numérico digitado (pode estar vazio)
-  const precoNum = useMemo(() => {
-    const n = Number(String(preco).replace(',', '.'))
-    return Number.isFinite(n) ? n : 0
-  }, [preco])
+  const precoNum = useMemo(() => num(preco), [preco])
 
   // Diferença entre a soma e o preço final (positivo = desconto efetivo, negativo = ágio)
   const diferenca = somaItens - precoNum
@@ -261,40 +287,100 @@ export default function CestaDetalhe() {
       setCategoria(catValida ? catValida.value : '')
       setImagemUrl(data.imagem ?? '')
       setFeiranteId(data.feirante_id ?? null)
-      const ids = (data.mercadorias ?? []).map((m: any) => m.id)
-      setMercSelecionadas(ids)
+
+      // Formato novo: data.itens (cada item com mercadoria aninhada).
+      // Legado: data.mercadorias (qtd 1, valor = preço avulso).
+      const itensApi = Array.isArray(data.itens) ? data.itens : null
+      if (itensApi && itensApi.length) {
+        setItensCesta(
+          itensApi.map((it: any) => {
+            const merc = it.mercadoria ?? {}
+            const valor = it.valor_unitario ?? merc.preco ?? 0
+            return {
+              mercadoria_id: it.mercadoria_id ?? merc.id,
+              nome: merc.nome ?? '',
+              emoji: merc.emoji ?? null,
+              precoAvulso: num(merc.preco),
+              quantidade: String(num(it.quantidade) || 1),
+              valorUnitario: num(valor).toFixed(2),
+            }
+          })
+        )
+      } else {
+        setItensCesta(
+          (data.mercadorias ?? []).map((m: any) => ({
+            mercadoria_id: m.id,
+            nome: m.nome,
+            emoji: m.emoji ?? null,
+            precoAvulso: num(m.preco),
+            quantidade: '1',
+            valorUnitario: num(m.preco).toFixed(2),
+          }))
+        )
+      }
       await fetchMercadorias(data.feirante_id)
     } catch { alert('Erro ao carregar cesta') }
     setLoading(false)
   }
 
-  // ────────── Sincronização desconto ↔ preço ──────────
+  // ────────── Itens da cesta ──────────
 
-  /** Quando o usuário marca/desmarca uma mercadoria, recalcula preço mantendo o desconto. */
-  function toggleMercadoria(mercId: number) {
-    const novas = mercSelecionadas.includes(mercId)
-      ? mercSelecionadas.filter((x) => x !== mercId)
-      : [...mercSelecionadas, mercId]
-    setMercSelecionadas(novas)
-
-    const novaSoma = mercadoriasDispo
-      .filter((m: any) => novas.includes(m.id))
-      .reduce((acc: number, m: any) => acc + Number(m.preco ?? 0), 0)
-
-    const valorDesc = Number(String(valorDescontoInput).replace(',', '.')) || 0
+  /** Recalcula o preço final a partir de uma nova soma, mantendo o desconto. */
+  function recalcularPreco(novaSoma: number) {
+    const valorDesc = num(valorDescontoInput)
     const novoPreco = calcularPrecoFinal(novaSoma, tipoDesconto, valorDesc)
     setPreco(novoPreco > 0 ? novoPreco.toFixed(2) : '')
   }
 
+  /** Adiciona uma mercadoria como item (qtd 1, valor sugerido = preço avulso). */
+  function adicionarItem(m: any) {
+    if (itensCesta.some((it) => it.mercadoria_id === m.id)) return
+    const novos: ItemEditavel[] = [
+      ...itensCesta,
+      {
+        mercadoria_id: m.id,
+        nome: m.nome,
+        emoji: m.emoji ?? null,
+        precoAvulso: num(m.preco),
+        quantidade: '1',
+        valorUnitario: num(m.preco).toFixed(2),
+      },
+    ]
+    setItensCesta(novos)
+    recalcularPreco(somaDe(novos))
+  }
+
+  /** Remove um item da cesta. */
+  function removerItem(mercadoria_id: number) {
+    const novos = itensCesta.filter((it) => it.mercadoria_id !== mercadoria_id)
+    setItensCesta(novos)
+    recalcularPreco(somaDe(novos))
+  }
+
+  /** Edita quantidade OU valor unitário de um item e recalcula o preço. */
+  function atualizarItem(
+    mercadoria_id: number,
+    campo: 'quantidade' | 'valorUnitario',
+    valor: string
+  ) {
+    const novos = itensCesta.map((it) =>
+      it.mercadoria_id === mercadoria_id ? { ...it, [campo]: valor } : it
+    )
+    setItensCesta(novos)
+    recalcularPreco(somaDe(novos))
+  }
+
+  // ────────── Sincronização desconto ↔ preço ──────────
+
   /** Usuário alterou o valor do desconto. Recalcula o preço final. */
   function handleDescontoValor(novoValor: string) {
     setValorDescontoInput(novoValor)
-    const num = Number(String(novoValor).replace(',', '.')) || 0
+    const n = num(novoValor)
     // Se digitou um número e ainda está em "nenhum", assume "valor" como default
-    const tipoEfetivo: TipoDesconto = tipoDesconto === 'nenhum' && num > 0 ? 'valor' : tipoDesconto
+    const tipoEfetivo: TipoDesconto = tipoDesconto === 'nenhum' && n > 0 ? 'valor' : tipoDesconto
     if (tipoEfetivo !== tipoDesconto) setTipoDesconto(tipoEfetivo)
     if (somaItens > 0) {
-      setPreco(calcularPrecoFinal(somaItens, tipoEfetivo, num).toFixed(2))
+      setPreco(calcularPrecoFinal(somaItens, tipoEfetivo, n).toFixed(2))
     }
   }
 
@@ -306,7 +392,7 @@ export default function CestaDetalhe() {
       if (somaItens > 0) setPreco(somaItens.toFixed(2))
       return
     }
-    const valor = Number(String(valorDescontoInput).replace(',', '.')) || 0
+    const valor = num(valorDescontoInput)
     if (somaItens > 0) {
       setPreco(calcularPrecoFinal(somaItens, novo, valor).toFixed(2))
     }
@@ -318,17 +404,17 @@ export default function CestaDetalhe() {
    */
   function handlePrecoManual(novo: string) {
     setPreco(novo)
-    const num = Number(String(novo).replace(',', '.'))
-    if (!Number.isFinite(num) || somaItens <= 0) return
+    const n = num(novo)
+    if (somaItens <= 0) return
 
-    if (num >= somaItens) {
+    if (n >= somaItens) {
       // Sem desconto (ou ágio, se for >)
       if (tipoDesconto !== 'nenhum') setTipoDesconto('nenhum')
       if (valorDescontoInput) setValorDescontoInput('')
       return
     }
     // Há desconto efetivo. Mantém o tipo selecionado.
-    const diff = somaItens - num
+    const diff = somaItens - n
     if (tipoDesconto === 'percentual') {
       const pct = (diff / somaItens) * 100
       setValorDescontoInput(pct.toFixed(0))
@@ -346,8 +432,8 @@ export default function CestaDetalhe() {
       alert('O nome da cesta deve ter pelo menos 3 caracteres')
       return
     }
-    const precoNumLocal = Number(String(preco).replace(',', '.'))
-    if (Number.isNaN(precoNumLocal) || precoNumLocal <= 0) {
+    const precoNumLocal = num(preco)
+    if (precoNumLocal <= 0) {
       alert('Informe um preço válido (maior que zero)')
       return
     }
@@ -358,6 +444,21 @@ export default function CestaDetalhe() {
           : 'Sua conta não está vinculada a um feirante. Peça ao admin para associar.'
       )
       return
+    }
+    if (itensCesta.length === 0) {
+      alert('Adicione ao menos um item à cesta.')
+      return
+    }
+    // Valida cada item (qtd > 0, valor unitário >= 0)
+    for (const it of itensCesta) {
+      if (num(it.quantidade) <= 0) {
+        alert(`Quantidade inválida para "${it.nome}". Use um número maior que zero.`)
+        return
+      }
+      if (num(it.valorUnitario) < 0) {
+        alert(`Valor unitário inválido para "${it.nome}".`)
+        return
+      }
     }
     // Imagem pode ser URL http(s) OU data URI (foto da câmera/galeria em base64).
     if (imagemUrl && !/^https?:\/\//i.test(imagemUrl) && !/^data:image\//i.test(imagemUrl)) {
@@ -371,7 +472,11 @@ export default function CestaDetalhe() {
       nome,
       preco: precoNumLocal,
       feirante_id: Number(feiranteId),
-      mercadorias: mercSelecionadas,
+      itens: itensCesta.map((it) => ({
+        mercadoria_id: it.mercadoria_id,
+        quantidade: num(it.quantidade),
+        valor_unitario: num(it.valorUnitario),
+      })),
     }
     const descontoNum = serializarDescontoEmValor(tipoDesconto, valorDescontoInput, somaItens)
     if (descontoNum != null && descontoNum > 0) payload.desconto = descontoNum
@@ -437,8 +542,8 @@ export default function CestaDetalhe() {
 
   // Texto auxiliar embaixo do input do desconto
   const descontoHelp = (() => {
-    if (somaItens <= 0) return 'Selecione mercadorias para calcular o desconto.'
-    const valor = Number(String(valorDescontoInput).replace(',', '.')) || 0
+    if (somaItens <= 0) return 'Adicione itens para calcular o desconto.'
+    const valor = num(valorDescontoInput)
     if (tipoDesconto === 'nenhum' || valor <= 0) return 'Sem desconto aplicado.'
     if (tipoDesconto === 'percentual') {
       const abatimento = (somaItens * valor) / 100
@@ -453,7 +558,6 @@ export default function CestaDetalhe() {
         <View style={styles.gap}>
           <FormInput label="Nome da Cesta" value={nome} onChangeText={setNome} />
 
-          {/* ───── Mercadorias ───── */}
           {/* Picker de feirante: só Superadmin (3) escolhe */}
           {admin!.nivel >= 3 && (
             <View>
@@ -479,25 +583,74 @@ export default function CestaDetalhe() {
             </View>
           )}
 
-          {mercadoriasDispo.length > 0 && (
-            <View>
-              <Text style={styles.label}>Mercadorias da Cesta</Text>
-              {mercadoriasDispo.map((m: any) => {
-                const sel = mercSelecionadas.includes(m.id)
-                return (
-                  <TouchableOpacity
-                    key={m.id}
-                    style={[styles.mercItem, sel && styles.mercItemSel]}
-                    onPress={() => toggleMercadoria(m.id)}
-                  >
-                    <Text style={styles.mercCheck}>{sel ? '☑️' : '☐'}</Text>
-                    <Text style={styles.mercNome}>{m.emoji ?? ''} {m.nome}</Text>
-                    <Text style={styles.mercPreco}>{formatBRL(Number(m.preco))}</Text>
-                  </TouchableOpacity>
-                )
-              })}
+          {/* ───── Itens da Cesta ───── */}
+          <View>
+            <View style={styles.itensHeader}>
+              <Text style={[styles.label, { marginBottom: 0 }]}>Itens da Cesta</Text>
+              <TouchableOpacity
+                style={[styles.addBtn, !feiranteId && styles.addBtnDisabled]}
+                onPress={() => setModalVisible(true)}
+                disabled={!feiranteId}
+                accessibilityLabel="Adicionar item à cesta"
+              >
+                <Ionicons name="add" size={18} color="#FFFFFF" />
+                <Text style={styles.addBtnText}>Adicionar item</Text>
+              </TouchableOpacity>
             </View>
-          )}
+
+            {itensCesta.length === 0 ? (
+              <Text style={styles.itensVazio}>
+                Nenhum item ainda. Toque em “Adicionar item” para montar a cesta.
+              </Text>
+            ) : (
+              itensCesta.map((it) => {
+                const sub = num(it.quantidade) * num(it.valorUnitario)
+                return (
+                  <View key={it.mercadoria_id} style={styles.itemRow}>
+                    <View style={styles.itemTopo}>
+                      <Text style={styles.itemNome} numberOfLines={1}>
+                        {it.emoji ? `${it.emoji} ` : ''}{it.nome}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => removerItem(it.mercadoria_id)}
+                        accessibilityLabel={`Remover ${it.nome}`}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.itemCampos}>
+                      <View style={styles.itemCampo}>
+                        <Text style={styles.itemCampoLabel}>Qtd.</Text>
+                        <TextInput
+                          style={styles.itemInput}
+                          value={it.quantidade}
+                          onChangeText={(v) => atualizarItem(it.mercadoria_id, 'quantidade', v)}
+                          keyboardType="numeric"
+                          placeholder="1"
+                        />
+                      </View>
+                      <View style={styles.itemCampo}>
+                        <Text style={styles.itemCampoLabel}>Valor un. (R$)</Text>
+                        <TextInput
+                          style={styles.itemInput}
+                          value={it.valorUnitario}
+                          onChangeText={(v) => atualizarItem(it.mercadoria_id, 'valorUnitario', v)}
+                          keyboardType="numeric"
+                          placeholder="0,00"
+                        />
+                      </View>
+                      <View style={styles.itemSubtotal}>
+                        <Text style={styles.itemCampoLabel}>Subtotal</Text>
+                        <Text style={styles.itemSubtotalValor}>{formatBRL(sub)}</Text>
+                      </View>
+                    </View>
+                  </View>
+                )
+              })
+            )}
+          </View>
 
           {/* ───── Bloco de Preço & Desconto ───── */}
           <View style={styles.precoBloco}>
@@ -655,6 +808,53 @@ export default function CestaDetalhe() {
           <ActionButton label="Salvar Cesta" onPress={salvar} loading={saving} />
         </View>
       </View>
+
+      {/* ───── Pop-up de seleção de mercadorias ───── */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitulo}>Adicionar item</Text>
+              <TouchableOpacity
+                onPress={() => setModalVisible(false)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel="Fechar"
+              >
+                <Ionicons name="close" size={24} color="#333333" />
+              </TouchableOpacity>
+            </View>
+
+            {mercadoriasParaAdicionar.length === 0 ? (
+              <Text style={styles.modalVazio}>
+                {mercadoriasDispo.length === 0
+                  ? 'Este feirante ainda não tem mercadorias cadastradas.'
+                  : 'Todas as mercadorias já foram adicionadas à cesta.'}
+              </Text>
+            ) : (
+              <ScrollView style={styles.modalLista}>
+                {mercadoriasParaAdicionar.map((m: any) => (
+                  <TouchableOpacity
+                    key={m.id}
+                    style={styles.modalItem}
+                    onPress={() => adicionarItem(m)}
+                  >
+                    <Text style={styles.modalItemNome} numberOfLines={1}>
+                      {m.emoji ? `${m.emoji} ` : ''}{m.nome}
+                    </Text>
+                    <Text style={styles.modalItemPreco}>{formatBRL(num(m.preco))}</Text>
+                    <Ionicons name="add-circle" size={24} color="#255336" />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   )
 }
@@ -686,18 +886,63 @@ const styles = StyleSheet.create({
   tabAtivo: { backgroundColor: '#255336' },
   tabText: { fontSize: 13, fontFamily: 'Poppins-SemiBold', color: '#255336' },
   tabTextoAtivo: { color: '#FFFFFF' },
-  mercItem: {
+
+  // Itens da cesta
+  itensHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEEEEE',
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
-  mercItemSel: { backgroundColor: '#F9FFF9' },
-  mercCheck: { fontSize: 18 },
-  mercNome: { flex: 1, fontSize: 14, fontFamily: 'Poppins-Regular', color: '#333333' },
-  mercPreco: { fontSize: 14, fontFamily: 'Poppins-SemiBold', color: '#255336' },
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#255336',
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  addBtnDisabled: { backgroundColor: '#A8C3B0' },
+  addBtnText: { fontSize: 13, fontFamily: 'Poppins-SemiBold', color: '#FFFFFF' },
+  itensVazio: {
+    fontSize: 13,
+    color: '#888888',
+    fontStyle: 'italic',
+    paddingVertical: 12,
+    textAlign: 'center',
+  },
+  itemRow: {
+    backgroundColor: '#F9FFF9',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E8F5E8',
+    padding: 12,
+    marginBottom: 10,
+  },
+  itemTopo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  itemNome: { flex: 1, fontSize: 14, fontFamily: 'Poppins-SemiBold', color: '#333333', marginRight: 8 },
+  itemCampos: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
+  itemCampo: { width: 76 },
+  itemCampoLabel: { fontSize: 11, color: '#666666', marginBottom: 4 },
+  itemInput: {
+    borderWidth: 1,
+    borderColor: '#CFE3D3',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    color: '#333333',
+    backgroundColor: '#FFFFFF',
+  },
+  itemSubtotal: { flex: 1, alignItems: 'flex-end' },
+  itemSubtotalValor: { fontSize: 15, fontFamily: 'Poppins-SemiBold', color: '#255336' },
 
   // Bloco preco/desconto
   precoBloco: {
@@ -813,4 +1058,45 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   fotoBotaoText: { fontSize: 13, color: '#255336', fontWeight: '600' },
+
+  // Modal de seleção
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 28,
+    maxHeight: '70%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  modalTitulo: { fontSize: 17, fontFamily: 'Poppins-SemiBold', color: '#333333' },
+  modalVazio: {
+    fontSize: 13,
+    color: '#888888',
+    fontStyle: 'italic',
+    paddingVertical: 24,
+    textAlign: 'center',
+  },
+  modalLista: { marginTop: 4 },
+  modalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEEEEE',
+  },
+  modalItemNome: { flex: 1, fontSize: 14, fontFamily: 'Poppins-Regular', color: '#333333' },
+  modalItemPreco: { fontSize: 14, fontFamily: 'Poppins-SemiBold', color: '#255336' },
 })

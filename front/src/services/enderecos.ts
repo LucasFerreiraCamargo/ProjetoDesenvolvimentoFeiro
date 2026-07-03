@@ -25,6 +25,16 @@ export interface EnderecoPayload {
   principal?: boolean;
 }
 
+/** Erro de request com o status HTTP anexado, para o chamador decidir o que fazer. */
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 async function lidaErro(res: Response, fallback: string): Promise<never> {
   let msg = fallback;
   try {
@@ -40,7 +50,20 @@ async function lidaErro(res: Response, fallback: string): Promise<never> {
   } catch {
     /* corpo não-JSON */
   }
-  throw new Error(`${msg} (HTTP ${res.status})`);
+  throw new ApiError(`${msg} (HTTP ${res.status})`, res.status);
+}
+
+/** Faz res.json() sem derrubar a tela caso o corpo não seja JSON válido. */
+async function jsonSeguro<T>(res: Response): Promise<T> {
+  const texto = await res.text();
+  try {
+    return JSON.parse(texto) as T;
+  } catch {
+    throw new ApiError(
+      `Resposta inesperada do servidor (HTTP ${res.status})`,
+      res.status,
+    );
+  }
 }
 
 function base() {
@@ -54,7 +77,7 @@ export const enderecosService = {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) await lidaErro(res, "Erro ao listar endereços");
-    return res.json();
+    return jsonSeguro<EnderecoUsuario[]>(res);
   },
 
   /** Cria um novo endereço para o usuário. */

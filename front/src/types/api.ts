@@ -124,15 +124,24 @@ export interface Feirante {
   feira?: Feira;
 }
 
+/**
+ * Como o saldo de estoque é contado:
+ *   PESO    → saldo em KG; venda por unidade opcional (via peso_estimado_unidade).
+ *   UNIDADE → saldo discreto em UN/CX; sem conversão de peso.
+ */
+export type TipoControleEstoque = "PESO" | "UNIDADE";
+
 export interface Mercadoria {
   id: number;
   nome: string;
+  /** Preço da unidade primária (espelho legado: preco_kg p/ PESO, preco_unidade p/ UNIDADE). */
   preco: Decimalish;
   preco_promocional?: Decimalish | null;
   quantidade: Decimalish;
   estoque_minimo: Decimalish;
   estoque_maximo: Decimalish;
   categoria: Categoria;
+  /** Unidade primária exibida — KG p/ produtos PESO, UN/CX p/ UNIDADE. */
   unidade: Unidade;
   foto: string;
   emoji?: string | null;
@@ -140,6 +149,17 @@ export interface Mercadoria {
   feirante_id: number;
   /** Presente apenas quando a rota faz `include: { feirante: true }`. */
   feirante?: Feirante;
+  // ─────────── Controle de estoque (ERP) ───────────
+  /** PESO → saldo em KG; UNIDADE → saldo discreto em UN/CX. */
+  tipo_controle: TipoControleEstoque;
+  /** Só p/ PESO: também permite comprar por unidade (exige peso_estimado_unidade). */
+  permite_venda_unidade: boolean;
+  /** Fator de conversão: KG por unidade (ex.: 0.120, 1.300). */
+  peso_estimado_unidade?: Decimalish | null;
+  /** Preço por KG (produtos PESO). */
+  preco_kg?: Decimalish | null;
+  /** Preço por unidade (derivado proporcional ao KG quando ausente em PESO). */
+  preco_unidade?: Decimalish | null;
 }
 
 export interface Cesta {
@@ -158,8 +178,32 @@ export interface Cesta {
   feirante_id: number;
   /** Presente quando a rota faz `include: { feirante: true }`. */
   feirante?: Feirante;
-  /** Presente quando a rota faz `include: { mercadorias: true }`. */
+  /**
+   * Itens da cesta no formato novo: cada um carrega quantidade e o
+   * valor_unitario praticado DENTRO da cesta. Presente quando a rota
+   * inclui `itens`.
+   */
+  itens?: CestaItem[];
+  /**
+   * Compatibilidade de leitura: derivado de `itens` pela API para telas
+   * antigas que consomem `cesta.mercadorias` diretamente.
+   */
   mercadorias?: Mercadoria[];
+}
+
+export interface CestaItem {
+  id: number;
+  cesta_id: number;
+  mercadoria_id: number;
+  /** Quantidade do item dentro da cesta. */
+  quantidade: Decimalish;
+  /**
+   * Valor unitário praticado na cesta (pode diferir do preço avulso da
+   * mercadoria). `null` → usar o preço avulso da mercadoria.
+   */
+  valor_unitario?: Decimalish | null;
+  /** Presente quando a rota inclui `itens: { include: { mercadoria: true } }`. */
+  mercadoria?: Mercadoria;
 }
 
 export interface CestaRecorrente {
@@ -224,9 +268,43 @@ export interface PedidoItem {
   id: number;
   quantidade: Decimalish;
   preco_unitario: Decimalish;
+  /** Unidade praticada na compra (UN/KG/CX). `null` em itens antigos. */
+  unidade?: Unidade | null;
   pedido_id: number;
   mercadoria_id: number;
   mercadoria?: Mercadoria;
+  // ─────────── Separação / pesagem (ERP) ───────────
+  /** Peso reservado em KG na compra (itens PESO). Base da baixa estimada. */
+  peso_estimado?: Decimalish | null;
+  /** Peso real medido na separação. Corrige a baixa e o valor da linha. */
+  peso_real?: Decimalish | null;
+  /** Marca o item como já separado/pesado. */
+  separado?: boolean;
+}
+
+/** Tipo de lançamento no livro-razão de estoque. */
+export type TipoMovimentacao =
+  | "VENDA"
+  | "AJUSTE"
+  | "PERDA"
+  | "ENTRADA"
+  | "ESTORNO";
+
+/**
+ * Lançamento do livro-razão de estoque (MovimentacaoEstoque). `quantidade` é
+ * assinada na unidade-base: negativa em saídas (VENDA, PERDA), positiva em
+ * entradas (ENTRADA, ESTORNO).
+ */
+export interface MovimentacaoEstoque {
+  id: number;
+  mercadoria_id: number;
+  tipo: TipoMovimentacao;
+  quantidade: Decimalish;
+  saldo_anterior?: Decimalish | null;
+  saldo_posterior?: Decimalish | null;
+  motivo?: string | null;
+  pedido_id?: number | null;
+  createdAt: string;
 }
 
 export interface Pedido {

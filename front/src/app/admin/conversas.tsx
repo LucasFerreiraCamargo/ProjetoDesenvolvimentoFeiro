@@ -15,6 +15,7 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native'
@@ -42,6 +43,22 @@ export default function ConversasScreen() {
   const [conversas, setConversas] = React.useState<ChatConversa[]>([])
   const [loading, setLoading] = React.useState(true)
   const [refreshing, setRefreshing] = React.useState(false)
+  const [busca, setBusca] = React.useState('')
+
+  // Filtra por nome do cliente ou número do pedido. Client-side sobre a lista
+  // já carregada — busca sem acento e case-insensitive.
+  const conversasFiltradas = React.useMemo(() => {
+    const q = busca.trim().toLowerCase()
+    if (!q) return conversas
+    const semAcento = (s: string) =>
+      s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    const alvo = semAcento(q)
+    return conversas.filter((c) => {
+      const nome = semAcento(c.pedido?.usuario?.nome ?? '')
+      const pedidoId = String(c.pedido?.id ?? '')
+      return nome.includes(alvo) || pedidoId.includes(q)
+    })
+  }, [conversas, busca])
 
   const carregar = React.useCallback(async () => {
     if (!admin?.token) return
@@ -129,8 +146,42 @@ export default function ConversasScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.filtroBarra}>
+        <View style={styles.busca}>
+          <Ionicons name="search" size={16} color="#7A8A7C" />
+          <TextInput
+            style={styles.buscaInput}
+            placeholder="Nome do cliente ou nº do pedido"
+            placeholderTextColor="#9AA79B"
+            value={busca}
+            onChangeText={setBusca}
+            returnKeyType="search"
+            autoCorrect={false}
+          />
+          {busca.length > 0 ? (
+            <TouchableOpacity
+              onPress={() => setBusca('')}
+              hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Limpar busca"
+            >
+              <Ionicons name="close-circle" size={16} color="#B7C2B7" />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+        <TouchableOpacity
+          style={styles.botaoIa}
+          onPress={() => router.push('/admin/chat-ia' as any)}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Abrir assistente de IA"
+        >
+          <Ionicons name="sparkles" size={20} color="#FFF" />
+        </TouchableOpacity>
+      </View>
+
       <FlatList
-        data={conversas}
+        data={conversasFiltradas}
         keyExtractor={(c) => String(c.pedido?.id)}
         renderItem={renderItem}
         contentContainerStyle={styles.lista}
@@ -145,18 +196,29 @@ export default function ConversasScreen() {
           />
         }
         ListEmptyComponent={
-          <View style={styles.vazio}>
-            <Ionicons
-              name="chatbubbles-outline"
-              size={48}
-              color="#CBD5C2"
-            />
-            <Text style={styles.vazioTitulo}>Nenhuma conversa ainda</Text>
-            <Text style={styles.vazioSub}>
-              Quando um cliente enviar uma mensagem sobre um pedido, ela
-              aparece aqui.
-            </Text>
-          </View>
+          busca.trim() ? (
+            <View style={styles.vazio}>
+              <Ionicons name="search" size={44} color="#CBD5C2" />
+              <Text style={styles.vazioTitulo}>Nenhum resultado</Text>
+              <Text style={styles.vazioSub}>
+                Nada encontrado para “{busca.trim()}”. Tente outro nome ou
+                número de pedido.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.vazio}>
+              <Ionicons
+                name="chatbubbles-outline"
+                size={48}
+                color="#CBD5C2"
+              />
+              <Text style={styles.vazioTitulo}>Nenhuma conversa ainda</Text>
+              <Text style={styles.vazioSub}>
+                Quando um cliente enviar uma mensagem sobre um pedido, ela
+                aparece aqui.
+              </Text>
+            </View>
+          )
         }
       />
     </View>
@@ -166,6 +228,45 @@ export default function ConversasScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF7E4' },
   centro: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  filtroBarra: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  busca: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#EAEFEA',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+  },
+  buscaInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#333',
+    paddingVertical: 0,
+  },
+  botaoIa: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#4A7C59',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#255336',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
   lista: { padding: 12, paddingBottom: 100 },
   card: {
     flexDirection: 'row',

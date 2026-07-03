@@ -205,7 +205,7 @@ const FinalizaPedido = () => {
    * com alguma mercadoria), perdendo todos os outros itens da cesta.
    */
   type ItemApi =
-    | { mercadoria_id: number; quantidade: number }
+    | { mercadoria_id: number; quantidade: number; unidade?: string }
     | { cesta_id: number; quantidade: number };
 
   function montarItemsParaApi(): ItemApi[] {
@@ -227,9 +227,15 @@ const FinalizaPedido = () => {
         }
         if (quantidadeApi <= 0) return null;
 
+        // Unidade real cadastrada (UN/KG/CX). Cai em "KG" pra itens por peso
+        // e "UN" pros demais quando o carrinho não trouxer `unidadeApi`.
+        const unidadeApi =
+          item.unidadeApi ?? (item.unidade === "g" ? "KG" : "UN");
+
         return {
           mercadoria_id: idNumerico,
           quantidade: quantidadeApi,
+          unidade: unidadeApi,
         };
       })
       .filter((it): it is ItemApi => it !== null);

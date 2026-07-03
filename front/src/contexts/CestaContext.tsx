@@ -8,7 +8,14 @@ export interface ItemCesta {
   feiraId: string;
   nome: string;
   preco: number;
+  /** Unidade de exibição/cálculo local: "g" (peso) ou "unid". */
   unidade: string;
+  /**
+   * Unidade real cadastrada na mercadoria (UN/KG/CX), enviada à API no
+   * checkout. Permite preço por unidade correto no backend. Para itens por
+   * peso é "KG"; por unidade, "UN" ou "CX".
+   */
+  unidadeApi?: string;
   quantidade: number;
   imagem?: string;
   emoji?: string;

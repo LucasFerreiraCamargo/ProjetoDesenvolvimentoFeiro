@@ -17,6 +17,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -25,6 +26,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useUser } from "../../contexts/UserContext";
 import { useAdmin } from "../../contexts/AdminContext";
 import { chatSocket } from "../../lib/chatSocket";
@@ -34,6 +36,7 @@ import type { ChatMensagem, RemetenteChat } from "../../types/api";
 const STATUS_SEM_CHAT = ["PENDENTE", "CANCELADO", "FINALIZADO"];
 
 const ChatScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
   const { user } = useUser();
   const { admin } = useAdmin();
   const params = useLocalSearchParams<{ pedidoId: string }>();
@@ -54,7 +57,27 @@ const ChatScreen: React.FC = () => {
     remetenteId: string;
   } | null>(null);
   const [statusPedido, setStatusPedido] = React.useState<string>("");
+  const [tecladoVisivel, setTecladoVisivel] = React.useState(false);
   const flatListRef = React.useRef<FlatList<ChatMensagem>>(null);
+
+  // Quando o teclado abre, o sistema redimensiona a tela e a barra de input
+  // sobe junto. Aí NÃO queremos o inset inferior (geraria um vão acima do
+  // teclado). Quando fecha, aplicamos o inset pra não colidir com os botões
+  // de navegação do Android (barra de gestos / home / voltar).
+  React.useEffect(() => {
+    const showEvt = Platform.OS === "android" ? "keyboardDidShow" : "keyboardWillShow";
+    const hideEvt = Platform.OS === "android" ? "keyboardDidHide" : "keyboardWillHide";
+    const s = Keyboard.addListener(showEvt, () => setTecladoVisivel(true));
+    const h = Keyboard.addListener(hideEvt, () => setTecladoVisivel(false));
+    return () => {
+      s.remove();
+      h.remove();
+    };
+  }, []);
+
+  // Espaço inferior da barra de input: respeita a área segura quando o
+  // teclado está fechado; some quando ele abre.
+  const padInferior = tecladoVisivel ? 8 : insets.bottom + 8;
 
   const podeEnviar =
     !!eu && !!statusPedido && !STATUS_SEM_CHAT.includes(statusPedido);
@@ -197,7 +220,7 @@ const ChatScreen: React.FC = () => {
       {/* Header inline — funciona em ambos os fluxos (cliente e feirante)
           porque a tela é fullscreen no _layout raiz (sem Stack envolvendo,
           então Stack.Screen aqui seria ignorado). */}
-      <View style={styles.headerInline}>
+      <View style={[styles.headerInline, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity
           onPress={voltar}
           style={styles.headerBackBtn}
@@ -222,7 +245,7 @@ const ChatScreen: React.FC = () => {
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
+          keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 56 : 0}
         >
           <FlatList
             ref={flatListRef}
@@ -256,7 +279,7 @@ const ChatScreen: React.FC = () => {
             </View>
           )}
 
-          <View style={styles.barraInput}>
+          <View style={[styles.barraInput, { paddingBottom: padInferior }]}>
             <TextInput
               style={styles.input}
               placeholder="Digite sua mensagem..."
@@ -299,7 +322,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: "#FFF",
-    paddingTop: Platform.OS === "ios" ? 50 : 30,
+    // paddingTop é aplicado inline com o inset superior (insets.top + 10)
+    // pra respeitar notch/status bar em qualquer aparelho.
     paddingBottom: 12,
     paddingHorizontal: 12,
     borderBottomWidth: 1,

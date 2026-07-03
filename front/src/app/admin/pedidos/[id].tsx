@@ -9,6 +9,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native'
@@ -91,6 +92,9 @@ export default function PedidoDetalhe() {
   const [atualizando, setAtualizando] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  // Pesagem: peso real digitado por item (id do item → texto do input).
+  const [pesos, setPesos] = useState<Record<number, string>>({})
+  const [separando, setSeparando] = useState(false)
 
   useEffect(() => { fetchPedido() }, [id])
 
@@ -163,6 +167,51 @@ export default function PedidoDetalhe() {
 
   async function atualizarStatus() {
     await aplicarStatus(novoStatus)
+  }
+
+  /**
+   * Envia os pesos reais informados para a separação. Converte vírgula em
+   * ponto, ignora campos vazios/ inválidos e chama PATCH /pedido/:id/separacao.
+   * Em caso de sucesso, recarrega o pedido (peso_real, separado e valor_total
+   * já refletidos pela API) e limpa os inputs.
+   */
+  async function confirmarSeparacao() {
+    const itens = Object.entries(pesos)
+      .map(([itemId, txt]) => {
+        const valor = Number(String(txt).replace(',', '.'))
+        return { item_id: Number(itemId), peso_real: valor }
+      })
+      .filter((i) => Number.isFinite(i.peso_real) && i.peso_real > 0)
+
+    if (itens.length === 0) {
+      Alert.alert('Pesagem', 'Informe o peso real de ao menos um item.')
+      return
+    }
+
+    setSeparando(true)
+    try {
+      const res = await adminFetch(
+        `/pedido/${id}/separacao`,
+        { method: 'PATCH', body: JSON.stringify({ itens }) },
+        admin!.token,
+      )
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        Alert.alert(
+          'Erro na pesagem',
+          data?.detalhes || data?.erro || `Não foi possível registrar a pesagem (HTTP ${res.status}).`,
+        )
+        return
+      }
+      setPesos({})
+      await fetchPedido()
+      Alert.alert('Pesagem registrada', 'O estoque e o valor do pedido foram atualizados.')
+    } catch (e: any) {
+      console.error('[Pedido.confirmarSeparacao] Exceção:', e)
+      Alert.alert('Erro de conexão', 'Não foi possível registrar a pesagem. Tente novamente.')
+    } finally {
+      setSeparando(false)
+    }
   }
 
   function finalizarPedido() {
@@ -421,6 +470,84 @@ export default function PedidoDetalhe() {
           )}
         </View>
       )}
+
+      {(() => {
+        // Separação/pesagem: só itens controlados por PESO entram aqui.
+        const itensPeso = itensPedido.filter(
+          (it) => String(it.mercadoria?.tipo_controle).toUpperCase() === 'PESO',
+        )
+        const statusAtual: string = pedido.status ?? 'PENDENTE'
+        const bloqueado = statusAtual === 'CANCELADO' || statusAtual === 'FINALIZADO'
+        if (itensPeso.length === 0 || bloqueado) return null
+
+        const fmtKg = (v: number) =>
+          `${v.toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg`
+        const pendentes = itensPeso.filter((it) => !it.separado)
+
+        return (
+          <View style={styles.card}>
+            <View style={styles.secaoHeaderRow}>
+              <Text style={styles.secaoTitulo}>Separação / Pesagem</Text>
+              <Text style={styles.secaoContador}>
+                {itensPeso.length - pendentes.length}/{itensPeso.length} pesados
+              </Text>
+            </View>
+            <Text style={styles.pesagemAjuda}>
+              Pese cada item e informe o peso real. O estoque e o valor do pedido
+              são corrigidos automaticamente.
+            </Text>
+
+            {itensPeso.map((it) => {
+              const nome = it.mercadoria?.nome ?? `Mercadoria #${it.mercadoria_id}`
+              const estimado = Number(it.peso_estimado ?? 0)
+              const real = it.peso_real != null ? Number(it.peso_real) : null
+              return (
+                <View key={it.id} style={styles.pesagemRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.pesagemNome} numberOfLines={1}>
+                      {nome}
+                    </Text>
+                    <Text style={styles.pesagemEstimado}>
+                      Estimado: {fmtKg(estimado)}
+                    </Text>
+                  </View>
+                  {it.separado && real != null ? (
+                    <View style={styles.pesagemOk}>
+                      <Ionicons name="checkmark-circle" size={16} color="#065F46" />
+                      <Text style={styles.pesagemOkText}>{fmtKg(real)}</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.pesagemInputWrap}>
+                      <TextInput
+                        style={styles.pesagemInput}
+                        value={pesos[it.id] ?? ''}
+                        onChangeText={(t) =>
+                          setPesos((prev) => ({ ...prev, [it.id]: t }))
+                        }
+                        keyboardType="decimal-pad"
+                        placeholder={estimado ? String(estimado) : '0,000'}
+                        placeholderTextColor="#B8B8B8"
+                      />
+                      <Text style={styles.pesagemUnidade}>kg</Text>
+                    </View>
+                  )}
+                </View>
+              )
+            })}
+
+            {pendentes.length > 0 && (
+              <View style={{ marginTop: 14 }}>
+                <ActionButton
+                  label="Confirmar pesagem"
+                  onPress={confirmarSeparacao}
+                  loading={separando}
+                  icon="scale-outline"
+                />
+              </View>
+            )}
+          </View>
+        )
+      })()}
 
       {(() => {
         const statusAtual: string = pedido.status ?? 'PENDENTE'
@@ -713,4 +840,73 @@ const styles = StyleSheet.create({
   },
   statusFinalTextoOk: { color: '#065F46' },
   acoesTerminais: { marginTop: 16 },
+
+  // ─────────── Separação / pesagem ───────────
+  pesagemAjuda: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Regular',
+    color: '#7A8A7C',
+    lineHeight: 16,
+    marginBottom: 12,
+  },
+  pesagemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEEEEE',
+  },
+  pesagemNome: {
+    fontSize: 14,
+    fontFamily: 'Poppins-SemiBold',
+    color: '#333333',
+  },
+  pesagemEstimado: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Regular',
+    color: '#999999',
+    marginTop: 1,
+  },
+  pesagemInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#D5E0D5',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#F8FBF8',
+    minWidth: 100,
+  },
+  pesagemInput: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: 'Poppins-SemiBold',
+    color: '#255336',
+    padding: 0,
+    textAlign: 'right',
+  },
+  pesagemUnidade: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Regular',
+    color: '#7A8A7C',
+  },
+  pesagemOk: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  pesagemOkText: {
+    fontSize: 13,
+    fontFamily: 'Poppins-SemiBold',
+    color: '#065F46',
+  },
 })

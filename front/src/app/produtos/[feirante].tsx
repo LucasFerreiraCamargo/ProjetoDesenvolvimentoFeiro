@@ -46,17 +46,80 @@ function estaDisponivelParaVenda(m: any): boolean {
   return true;
 }
 
-// Converte uma Mercadoria da API para o formato esperado pelo JSX desta tela.
+// Aplica promoção a um par (preço, preço_promocional) e devolve preço final
+// + preço original (quando há promoção válida).
+function resolvePreco(preco: number, precoPromo: number | null) {
+  const temPromo = precoPromo != null && precoPromo > 0 && precoPromo < preco;
+  return { preco: temPromo ? precoPromo! : preco, precoOriginal: temPromo ? preco : null };
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+// Converte uma Mercadoria da API (modelo ERP) para o formato do JSX desta tela.
+//
+// PESO    → estoque em KG; sempre vende por KG (preco_kg) e, opcionalmente,
+//           por unidade (preco_unidade ou derivado de preco_kg × peso estimado).
+//           A venda por unidade é ESTIMADA (peso real só na separação).
+// UNIDADE → vende na unidade discreta (UN/CX) por preco_unidade.
 function mapMercadoriaParaProduto(m: any) {
-  const preco = Number(m.preco ?? 0);
-  const pp = m.preco_promocional != null ? Number(m.preco_promocional) : null;
-  const temPromo = pp != null && pp > 0 && pp < preco;
+  const tipoControle = m.tipo_controle === "PESO" ? "PESO" : "UNIDADE";
+  const permiteUnidade = !!m.permite_venda_unidade;
+  const pesoEstimado =
+    m.peso_estimado_unidade != null ? Number(m.peso_estimado_unidade) : null;
+  const precoPromo =
+    m.preco_promocional != null ? Number(m.preco_promocional) : null;
+
+  // Cada forma de venda: { tipo: 'KG'|'UN'|'CX', preco, precoOriginal }.
+  const unidades: { tipo: string; preco: number; precoOriginal: number | null }[] = [];
+  let principalPreco: number;
+  let principalOriginal: number | null = null;
+
+  if (tipoControle === "PESO") {
+    const precoKg =
+      m.preco_kg != null ? Number(m.preco_kg) : Number(m.preco ?? 0);
+    // A promoção do produto PESO incide sobre o preço por KG (forma primária).
+    const rKg = resolvePreco(precoKg, precoPromo);
+    unidades.push({ tipo: "KG", preco: rKg.preco, precoOriginal: rKg.precoOriginal });
+    principalPreco = rKg.preco;
+    principalOriginal = rKg.precoOriginal;
+
+    if (permiteUnidade) {
+      const precoUn =
+        m.preco_unidade != null
+          ? Number(m.preco_unidade)
+          : pesoEstimado != null
+          ? round2(precoKg * pesoEstimado)
+          : precoKg;
+      unidades.push({ tipo: "UN", preco: precoUn, precoOriginal: null });
+    }
+  } else {
+    const unidadeDiscreta =
+      m.unidade && m.unidade !== "KG" ? String(m.unidade) : "UN";
+    const precoUn =
+      m.preco_unidade != null ? Number(m.preco_unidade) : Number(m.preco ?? 0);
+    const rUn = resolvePreco(precoUn, precoPromo);
+    unidades.push({
+      tipo: unidadeDiscreta,
+      preco: rUn.preco,
+      precoOriginal: rUn.precoOriginal,
+    });
+    principalPreco = rUn.preco;
+    principalOriginal = rUn.precoOriginal;
+  }
+
   return {
     id: String(m.id),
     nome: m.nome,
-    preco: temPromo ? pp! : preco,
-    precoOriginal: temPromo ? preco : null,
-    unidade: String(m.unidade ?? "UN").toLowerCase(),
+    preco: principalPreco,
+    precoOriginal: principalOriginal,
+    unidade: (tipoControle === "PESO" ? "kg" : String(m.unidade ?? "UN")).toLowerCase(),
+    // Formas de venda no formato { tipo: 'UN'|'KG'|'CX', preco, precoOriginal }.
+    unidades,
+    tipoControle,
+    permiteUnidade,
+    pesoEstimado,
+    // Quando PESO é comprado por unidade, o valor é estimado (depende da pesagem).
+    precoEstimadoUnidade: tipoControle === "PESO" && permiteUnidade,
     estoque: Number(m.quantidade ?? 0),
     imagem: m.foto || "",
     emoji: m.emoji ?? null,
@@ -64,6 +127,32 @@ function mapMercadoriaParaProduto(m: any) {
     quantidade: 0,
     destaque: !!m.destaque,
   };
+}
+
+// Tipos de unidade da API que representam "venda por unidade" (vs. peso/KG).
+const UNIDADES_POR_UNIDADE = ["UN", "CX"];
+
+// Helpers de unidade do produto (derivados das unidades cadastradas).
+function temVendaPorPeso(produto: any): boolean {
+  return (produto.unidades || []).some((u: any) => u.tipo === "KG");
+}
+function temVendaPorUnidade(produto: any): boolean {
+  return (produto.unidades || []).some((u: any) =>
+    UNIDADES_POR_UNIDADE.includes(u.tipo),
+  );
+}
+// Código da unidade (UN/CX) a usar quando o cliente compra por unidade.
+function codigoUnidadeVenda(produto: any): string {
+  const u = (produto.unidades || []).find((x: any) =>
+    UNIDADES_POR_UNIDADE.includes(x.tipo),
+  );
+  return u?.tipo ?? "UN";
+}
+// Preço de uma forma de venda ("peso" → KG; "unidade" → UN/CX).
+function precoDaForma(produto: any, forma: "peso" | "unidade"): number {
+  const alvo = forma === "peso" ? ["KG"] : UNIDADES_POR_UNIDADE;
+  const u = (produto.unidades || []).find((x: any) => alvo.includes(x.tipo));
+  return u ? u.preco : produto.preco;
 }
 
 // Fotos do Unsplash para produtos
@@ -275,7 +364,6 @@ export default function ProdutosFeiranteScreen() {
 
     if (produto && feirante && feira) {
       const currentPrice = getCurrentPrice(produto, "unidade");
-      const currentUnit = getCurrentUnit(produto);
 
       adicionarItem({
         produtoId: produto.id,
@@ -284,6 +372,7 @@ export default function ProdutosFeiranteScreen() {
         nome: `${produto.nome} (${maturation})`,
         preco: currentPrice,
         unidade: "unid",
+        unidadeApi: codigoUnidadeVenda(produto),
         quantidade: 1,
         imagem: produtoImages[produto.id] || produto.imagem,
         emoji: produto.emoji,
@@ -307,7 +396,6 @@ export default function ProdutosFeiranteScreen() {
 
     if (produto && feirante && feira) {
       const currentPrice = getCurrentPrice(produto, "unidade");
-      const currentUnit = getCurrentUnit(produto);
 
       adicionarItem({
         produtoId: produto.id,
@@ -316,6 +404,7 @@ export default function ProdutosFeiranteScreen() {
         nome: `${produto.nome} (${maturation})`,
         preco: currentPrice,
         unidade: "unid",
+        unidadeApi: codigoUnidadeVenda(produto),
         quantidade: quantity,
         imagem: produtoImages[produto.id] || produto.imagem,
         emoji: produto.emoji,
@@ -359,6 +448,7 @@ export default function ProdutosFeiranteScreen() {
         nome: `${produto.nome} (${maturation})`,
         preco: preco,
         unidade: "g",
+        unidadeApi: "KG",
         quantidade: gramas,
         imagem: produtoImages[produto.id] || produto.imagem,
         emoji: produto.emoji,
@@ -408,64 +498,16 @@ export default function ProdutosFeiranteScreen() {
     setSelectedUnits((prev) => ({ ...prev, [produtoId]: nextUnit }));
   };
 
-  // Funções helper para preços e unidades
+  // Preço da forma de venda escolhida (peso → KG; unidade → UN/CX), lendo o
+  // preço real cadastrado em cada unidade. Sem mais estimativa de peso médio.
   const getCurrentPrice = (produto: any, forceQuantityType?: string) => {
-    const currentQuantityType =
+    const tipo =
       forceQuantityType || selectedQuantityType[produto.id] || "unidade";
-
-    // Se tem diferentes unidades definidas no produto
-    const selectedUnit = selectedUnits[produto.id] || produto.unidade;
-    const unitData = produto.unidades?.find(
-      (u: any) => u.tipo === selectedUnit
-    );
-
-    // Preço base do produto
-    const basePrice = unitData ? unitData.preco : produto.preco;
-
-    // Se está vendendo por peso, usar o preço base (por kg)
-    if (currentQuantityType === "peso") {
-      return basePrice;
-    }
-
-    // Se está vendendo por unidade, calcular preço por unidade
-    // Assumindo peso médio de 150g por unidade para frutas/legumes
-    const averageWeightInKg = 0.15; // 150g
-    return basePrice * averageWeightInKg;
+    return precoDaForma(produto, tipo === "peso" ? "peso" : "unidade");
   };
 
   const getCurrentUnit = (produto: any) => {
     return selectedUnits[produto.id] || produto.unidade;
-  };
-
-  // Verificar se produto pode ser vendido por peso
-  const canSellByWeight = (produto: any) => {
-    // Produtos que NÃO podem ser vendidos por peso (apenas por unidade)
-    const unitOnlyProducts = ["alface", "acelga", "rúcula", "agrião", "couve"];
-
-    // Produtos que tipicamente podem ser vendidos por peso
-    const weightProducts = [
-      "tomate",
-      "batata",
-      "cebola",
-      "cenoura",
-      "banana",
-      "maçã",
-      "laranja",
-      "morango",
-    ];
-
-    const nome = produto.nome?.toLowerCase() || "";
-
-    // Se está na lista de produtos que só vendem por unidade, retorna false
-    if (unitOnlyProducts.some((p) => nome.includes(p))) {
-      return false;
-    }
-
-    // Se tem flag específica ou está na lista de produtos que podem ser vendidos por peso
-    return (
-      weightProducts.some((p) => nome.includes(p)) ||
-      produto.vendaPorPeso === true
-    );
   };
 
   const isProductInPromotion = (produto: any) => {
@@ -848,14 +890,15 @@ export default function ProdutosFeiranteScreen() {
         <View style={styles.produtosContainer}>
           {produtosFiltrados.map((produto: any) => {
             const isPromotion = isProductInPromotion(produto);
-            const currentPrice = getCurrentPrice(produto);
-            const currentUnit = getCurrentUnit(produto);
-            const canChangeUnit =
-              produto.unidades && produto.unidades.length > 1;
             const maturation = selectedMaturation[produto.id] || "";
-            // Definir tipo de quantidade baseado na unidade padrão ou seleção do usuário
-            const quantityType = selectedQuantityType[produto.id] || "unidade";
-            const productCanSellByWeight = canSellByWeight(produto);
+            // Formas de venda derivadas das unidades cadastradas pelo feirante.
+            const temPeso = temVendaPorPeso(produto); // tem KG
+            const temUnidade = temVendaPorUnidade(produto); // tem UN/CX
+            const ambasFormas = temPeso && temUnidade;
+            // Default inteligente: se só tem peso → "peso"; senão → "unidade".
+            const defaultQuantityType = temPeso && !temUnidade ? "peso" : "unidade";
+            const quantityType =
+              selectedQuantityType[produto.id] || defaultQuantityType;
             // Produto vindo da busca: marca com borda verde + faixa no topo.
             const ehDestaque =
               destaqueId != null && String(produto.id) === destaqueId;
@@ -965,8 +1008,9 @@ export default function ProdutosFeiranteScreen() {
                   </View>
                 </View>
 
-                {/* Radio para escolher tipo de quantidade - apenas para produtos que podem ser vendidos por peso */}
-                {productCanSellByWeight && (
+                {/* Forma de venda — só aparece quando o feirante cadastrou
+                    AMBAS as formas (peso + unidade) para esta mercadoria. */}
+                {ambasFormas && (
                   <View style={styles.quantityTypeContainer}>
                     <Text style={styles.quantityTypeLabel}>
                       Forma de venda:
@@ -1045,8 +1089,21 @@ export default function ProdutosFeiranteScreen() {
                   </View>
                 )}
 
+                {/* Aviso de preço estimado — produto controlado por PESO que
+                    está sendo comprado por unidade. O valor final depende da
+                    pesagem feita pelo feirante na separação. */}
+                {quantityType === "unidade" && produto.precoEstimadoUnidade && (
+                  <View style={styles.estimadoBanner}>
+                    <Ionicons name="alert-circle-outline" size={16} color="#92400E" />
+                    <Text style={styles.estimadoBannerText}>
+                      O preço desse produto é estimado e pode sofrer variação de
+                      até 10% do valor total após a pesagem.
+                    </Text>
+                  </View>
+                )}
+
                 {/* Controles de quantidade baseados no tipo selecionado */}
-                {productCanSellByWeight && quantityType === "peso" ? (
+                {quantityType === "peso" ? (
                   <View style={styles.weightControls}>
                     <View style={styles.weightInputContainer}>
                       <TextInput
@@ -1562,6 +1619,24 @@ const styles = StyleSheet.create({
   quantityTypeTextActive: {
     color: "#2D5D31",
     fontWeight: "600",
+  },
+  estimadoBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "#FEF3C7",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FCD34D",
+    padding: 12,
+    marginBottom: 16,
+  },
+  estimadoBannerText: {
+    flex: 1,
+    fontSize: 12,
+    color: "#92400E",
+    fontWeight: "500",
+    lineHeight: 16,
   },
   weightControls: {
     gap: 12,

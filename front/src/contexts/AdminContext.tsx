@@ -29,6 +29,7 @@ interface AdminLogado {
   nivel: 1 | 2 | 3
   token: string
   feiranteId?: number
+  telefone?: string
 }
 
 interface AdminContextValue {
@@ -105,6 +106,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
           nivel: Number(user.nivel) as 1 | 2 | 3,
           token: user.token ?? '',
           feiranteId,
+          telefone: user.telefone,
         }
       : null
 

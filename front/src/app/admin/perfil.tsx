@@ -18,6 +18,33 @@ import { horariosService, JanelaHorario } from '../../services/horarios'
 import type { HorarioFeirante, TipoHorario } from '../../types/api'
 
 const RAIOS_KM = [1, 2, 3, 5, 7, 10, 15, 20, 30, 40, 50]
+// Limites do raio de atuação. Mantém o usuário em valores razoáveis (até
+// 200 km cobre quase qualquer caso real de delivery regional).
+const RAIO_MIN = 1
+const RAIO_MAX = 200
+
+// Smart step — incremento varia de acordo com a magnitude atual. Evita
+// ter que apertar "+" 50 vezes para sair de 50 → 100 km, mas dá precisão
+// fina em valores pequenos (típicos de feirante urbano).
+//   1-4 km   → ±1 km   (sintonia fina)
+//   5-19 km  → ±5 km   (presets comuns)
+//   20-49 km → ±10 km  (regional)
+//   50-99 km → ±25 km  (longo alcance)
+//   100+ km  → ±50 km  (atacado/distribuição)
+function stepIncrementarRaio(km: number): number {
+  if (km < 5) return 1
+  if (km < 20) return 5
+  if (km < 50) return 10
+  if (km < 100) return 25
+  return 50
+}
+function stepDecrementarRaio(km: number): number {
+  if (km <= 5) return 1
+  if (km <= 20) return 5
+  if (km <= 50) return 10
+  if (km <= 100) return 25
+  return 50
+}
 const DIAS_SEMANA = [
   'Domingo',
   'Segunda-feira',
@@ -261,6 +288,10 @@ export default function AdminPerfil() {
   const [salvandoRaio, setSalvandoRaio] = useState(false)
   const [raioKm, setRaioKm] = useState(10)
   const [entregaAtiva, setEntregaAtiva] = useState(true)
+  // Input para digitar um raio personalizado (km), permitindo valores fora
+  // dos presets rápidos — inclusive decimais (ex: 3.5 km).
+  const [mostrarInputCustom, setMostrarInputCustom] = useState(false)
+  const [inputCustomRaio, setInputCustomRaio] = useState('')
 
   // Edição inline dos dados da banca (nome, banca, especialidade, telefone)
   const [editandoBanca, setEditandoBanca] = useState(false)
@@ -362,6 +393,34 @@ export default function AdminPerfil() {
       Alert.alert('Erro', 'Falha na conexão com o servidor.')
     }
     setSalvandoRaio(false)
+  }
+
+  /**
+   * Valida e aplica o raio digitado manualmente no input "Outro".
+   * Aceita decimais (vírgula ou ponto), exige número positivo e respeita o
+   * teto de RAIO_MAX km. Arredonda para 1 casa para evitar ruído de ponto
+   * flutuante (3.50000001 → 3.5).
+   */
+  function aplicarRaioCustom() {
+    const normalizado = inputCustomRaio.replace(',', '.').trim()
+    const valor = Number(normalizado)
+
+    if (!normalizado || Number.isNaN(valor)) {
+      Alert.alert('Valor inválido', 'Digite um número em km (ex: 3.5).')
+      return
+    }
+    if (valor <= 0) {
+      Alert.alert('Valor inválido', 'O raio deve ser um número positivo.')
+      return
+    }
+    if (valor > RAIO_MAX) {
+      Alert.alert('Valor muito alto', `O raio máximo permitido é ${RAIO_MAX} km.`)
+      return
+    }
+
+    setRaioKm(Math.round(valor * 10) / 10)
+    setMostrarInputCustom(false)
+    setInputCustomRaio('')
   }
 
   /**
@@ -642,18 +701,73 @@ export default function AdminPerfil() {
             Defina a distância máxima que você atende entregas. Clientes fora desta área não verão sua banca para delivery.
           </Text>
 
+          {/* Destaque do valor + stepper (− / +). O smart step ajusta o
+              incremento conforme a magnitude — fino em valores pequenos,
+              grosso em valores grandes. Sem cap externo: feirante pode
+              chegar até RAIO_MAX km. */}
           <View style={styles.raioDestaque}>
-            <Text style={styles.raioValorGrande}>{raioKm} km</Text>
-            <Text style={styles.raioSub}>raio de entrega</Text>
+            <View style={styles.raioStepperRow}>
+              <TouchableOpacity
+                style={[
+                  styles.raioStepperBtn,
+                  raioKm <= RAIO_MIN && styles.raioStepperBtnDisabled,
+                ]}
+                onPress={() =>
+                  setRaioKm((cur) =>
+                    Math.max(RAIO_MIN, cur - stepDecrementarRaio(cur))
+                  )
+                }
+                disabled={raioKm <= RAIO_MIN}
+                accessibilityLabel="Diminuir raio"
+                accessibilityRole="button"
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="remove"
+                  size={26}
+                  color={raioKm <= RAIO_MIN ? '#BBBBBB' : '#255336'}
+                />
+              </TouchableOpacity>
+
+              <View style={styles.raioStepperValor}>
+                <Text style={styles.raioValorGrande}>{raioKm} km</Text>
+                <Text style={styles.raioSub}>raio de entrega</Text>
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.raioStepperBtn,
+                  raioKm >= RAIO_MAX && styles.raioStepperBtnDisabled,
+                ]}
+                onPress={() =>
+                  setRaioKm((cur) =>
+                    Math.min(RAIO_MAX, cur + stepIncrementarRaio(cur))
+                  )
+                }
+                disabled={raioKm >= RAIO_MAX}
+                accessibilityLabel="Aumentar raio"
+                accessibilityRole="button"
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="add"
+                  size={26}
+                  color={raioKm >= RAIO_MAX ? '#BBBBBB' : '#255336'}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
-          <Text style={styles.label}>Selecionar raio:</Text>
+          <Text style={styles.label}>Valores rápidos:</Text>
           <View style={styles.raioGrid}>
             {RAIOS_KM.map((km) => (
               <TouchableOpacity
                 key={km}
                 style={[styles.raioBtn, raioKm === km && styles.raioBtnAtivo]}
-                onPress={() => setRaioKm(km)}
+                onPress={() => {
+                  setRaioKm(km)
+                  setMostrarInputCustom(false)
+                }}
                 activeOpacity={0.8}
               >
                 <Text
@@ -666,7 +780,66 @@ export default function AdminPerfil() {
                 </Text>
               </TouchableOpacity>
             ))}
+
+            {/* Botão "+" — abre input inline para um raio personalizado,
+                permitindo valores fora dos presets (inclusive decimais). */}
+            <TouchableOpacity
+              style={[
+                styles.raioBtnCustom,
+                mostrarInputCustom && styles.raioBtnCustomAtivo,
+              ]}
+              onPress={() => {
+                setMostrarInputCustom((v) => !v)
+                // Pré-preenche com o valor atual para facilitar o ajuste.
+                setInputCustomRaio(String(raioKm))
+              }}
+              accessibilityLabel="Digitar outro valor de raio"
+              accessibilityRole="button"
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="add"
+                size={16}
+                color={mostrarInputCustom ? '#FFFFFF' : '#255336'}
+              />
+              <Text
+                style={[
+                  styles.raioBtnText,
+                  mostrarInputCustom && styles.raioBtnTextoAtivo,
+                ]}
+              >
+                Outro
+              </Text>
+            </TouchableOpacity>
           </View>
+
+          {/* Input inline para o raio personalizado */}
+          {mostrarInputCustom && (
+            <View style={styles.raioCustomRow}>
+              <TextInput
+                style={styles.raioCustomInput}
+                value={inputCustomRaio}
+                onChangeText={setInputCustomRaio}
+                keyboardType="decimal-pad"
+                placeholder="Ex: 3.5"
+                placeholderTextColor="#999999"
+                maxLength={6}
+                returnKeyType="done"
+                onSubmitEditing={aplicarRaioCustom}
+                autoFocus
+              />
+              <Text style={styles.raioCustomUnidade}>km</Text>
+              <TouchableOpacity
+                style={styles.raioCustomConfirmar}
+                onPress={aplicarRaioCustom}
+                accessibilityLabel="Aplicar raio digitado"
+                accessibilityRole="button"
+                activeOpacity={0.8}
+              >
+                <Ionicons name="checkmark" size={22} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          )}
 
           <TouchableOpacity
             style={[
@@ -876,6 +1049,39 @@ const styles = StyleSheet.create({
     backgroundColor: '#E8F5E8',
     borderRadius: 12,
     paddingVertical: 16,
+    paddingHorizontal: 12,
+  },
+  raioStepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  raioStepperBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#255336',
+    // Sombra leve para destacar do fundo verde do destaque
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  raioStepperBtnDisabled: {
+    borderColor: '#DDDDDD',
+    backgroundColor: '#F5F5F5',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  raioStepperValor: {
+    alignItems: 'center',
+    flex: 1,
   },
   raioValorGrande: {
     fontSize: 40,
@@ -895,6 +1101,52 @@ const styles = StyleSheet.create({
   raioBtnAtivo: { backgroundColor: '#255336' },
   raioBtnText: { fontSize: 13, fontFamily: 'Poppins-SemiBold', color: '#255336' },
   raioBtnTextoAtivo: { color: '#FFFFFF' },
+  raioBtnCustom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#255336',
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  raioBtnCustomAtivo: {
+    backgroundColor: '#255336',
+    borderStyle: 'solid',
+  },
+  raioCustomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+  },
+  raioCustomInput: {
+    flex: 1,
+    height: 48,
+    borderWidth: 1,
+    borderColor: '#255336',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    fontFamily: 'Poppins-SemiBold',
+    color: '#255336',
+    backgroundColor: '#FFFFFF',
+  },
+  raioCustomUnidade: {
+    fontSize: 15,
+    fontFamily: 'Poppins-SemiBold',
+    color: '#4A7C59',
+  },
+  raioCustomConfirmar: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#255336',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   entregaToggle: {
     flexDirection: 'row',

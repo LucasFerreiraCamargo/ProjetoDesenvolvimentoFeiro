@@ -201,6 +201,25 @@ export default function Dashboard() {
             <Ionicons name="chevron-forward" size={20} color="#FFF" />
           </TouchableOpacity>
 
+          {/* Atalho para registro de perdas/quebras: baixa manual de estoque
+              com rastro no livro-razão. */}
+          <TouchableOpacity
+            style={styles.atalhoPerdas}
+            onPress={() => router.push('/admin/perdas' as any)}
+            activeOpacity={0.85}
+          >
+            <View style={styles.atalhoIconePerdas}>
+              <Ionicons name="trash-bin" size={20} color="#FFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.atalhoTitulo}>Perdas e Quebras</Text>
+              <Text style={styles.atalhoSubPerdas}>
+                Registre baixas de estoque por perda, dano ou vencimento
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#FFF" />
+          </TouchableOpacity>
+
           <Text style={styles.secaoTitulo}>Pedidos Recentes</Text>
           {pedidosRecentes.length === 0 ? (
             <Text style={styles.vazio}>Nenhum pedido encontrado</Text>
@@ -283,6 +302,36 @@ const styles = StyleSheet.create({
   atalhoSub: {
     fontSize: 12,
     color: '#E8F5E8',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+
+  // Atalho "Perdas e Quebras" — tom vermelho discreto para diferenciar.
+  atalhoPerdas: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#B45454',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 24,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+  atalhoIconePerdas: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  atalhoSubPerdas: {
+    fontSize: 12,
+    color: '#FCE8E8',
     marginTop: 2,
     lineHeight: 16,
   },

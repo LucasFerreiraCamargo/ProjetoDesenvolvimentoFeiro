@@ -8,7 +8,7 @@ import React, {
   useState,
 } from "react";
 import { Alert } from "react-native";
-import { enderecosService } from "../services/enderecos";
+import { ApiError, enderecosService } from "../services/enderecos";
 import type { EnderecoUsuario } from "../types/api";
 
 // Tenta importar AsyncStorage se estiver disponível
@@ -165,6 +165,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
       }
     } catch (e) {
       console.warn("[UserContext] Falha ao listar endereços:", e);
+      // Sessão inválida/expirada: limpa em silêncio para o app voltar ao
+      // estado deslogado, em vez de insistir num endpoint autenticado.
+      if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+        setUserState(null);
+        persist(null);
+        setEnderecos([]);
+        setEnderecoSelecionadoState(null);
+        if (AsyncStorage) {
+          AsyncStorage.removeItem(ENDERECO_KEY).catch(() => {});
+        }
+      }
     }
   }, [user?.id, user?.token, enderecoSelecionadoId]);
 
