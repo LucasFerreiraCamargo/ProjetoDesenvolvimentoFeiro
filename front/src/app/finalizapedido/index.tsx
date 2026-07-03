@@ -46,11 +46,8 @@ const FinalizaPedido = () => {
   const [carregandoHorarios, setCarregandoHorarios] = useState(false);
   const [observacoes, setObservacoes] = useState("");
   const [tipoPagamento, setTipoPagamento] = useState<
-    "credito" | "pix" | "dinheiro"
+    "pix" | "dinheiro"
   >("pix");
-  const [numeroCartao, setNumeroCartao] = useState("");
-  const [validadeCartao, setValidadeCartao] = useState("");
-  const [cvvCartao, setCvvCartao] = useState("");
   const [trocoDinheiro, setTrocoDinheiro] = useState("");
   const [aceitouTermos, setAceitouTermos] = useState(false);
 
@@ -76,6 +73,51 @@ const FinalizaPedido = () => {
     const n = Number(cestaState.itens[0]?.feiranteId);
     return Number.isFinite(n) && n > 0 ? n : null;
   }, [cestaState.itens]);
+
+  // Chave PIX real do feirante (cadastrada no perfil admin). Sem mais mock:
+  // se o feirante não cadastrou, o modal avisa em vez de exibir uma chave falsa.
+  const [chavePixFeirante, setChavePixFeirante] = useState<string | null>(null);
+  // Enquanto carrega, mantemos o PIX visível para evitar "piscar" a opção.
+  const [carregandoChavePix, setCarregandoChavePix] = useState(true);
+
+  React.useEffect(() => {
+    if (feiranteIdCesta == null) {
+      setChavePixFeirante(null);
+      setCarregandoChavePix(false);
+      return;
+    }
+    let ativo = true;
+    setCarregandoChavePix(true);
+    fetch(`${API_BASE.replace(/\/$/, "")}/feirantes/${feiranteIdCesta}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((f) => {
+        if (!ativo) return;
+        const chave =
+          f && typeof f.chave_pix === "string" && f.chave_pix.trim()
+            ? f.chave_pix.trim()
+            : null;
+        setChavePixFeirante(chave);
+      })
+      .catch(() => {
+        if (ativo) setChavePixFeirante(null);
+      })
+      .finally(() => {
+        if (ativo) setCarregandoChavePix(false);
+      });
+    return () => {
+      ativo = false;
+    };
+  }, [feiranteIdCesta]);
+
+  // PIX só é ofertado quando o feirante tem chave cadastrada.
+  const pixDisponivel = carregandoChavePix || chavePixFeirante != null;
+
+  // Se o cliente estava em PIX e a opção deixou de existir, cai para Dinheiro.
+  React.useEffect(() => {
+    if (!pixDisponivel && tipoPagamento === "pix") {
+      setTipoPagamento("dinheiro");
+    }
+  }, [pixDisponivel, tipoPagamento]);
 
   // Carrega horários de ENTREGA do feirante (público, não precisa token).
   React.useEffect(() => {
@@ -336,27 +378,6 @@ const FinalizaPedido = () => {
       }
     }
 
-    if (tipoPagamento === "credito") {
-      if (!numeroCartao || numeroCartao.replace(/\s/g, "").length < 16) {
-        Alert.alert(
-          "Atenção",
-          "Número do cartão inválido. Digite os 16 dígitos."
-        );
-        return false;
-      }
-      if (!validadeCartao || validadeCartao.length < 5) {
-        Alert.alert(
-          "Atenção",
-          "Data de validade inválida. Use o formato MM/AA."
-        );
-        return false;
-      }
-      if (!cvvCartao || cvvCartao.length < 3) {
-        Alert.alert("Atenção", "CVV inválido. Digite 3 ou 4 dígitos.");
-        return false;
-      }
-    }
-
     if (tipoPagamento === "dinheiro") {
       if (!trocoDinheiro) {
         Alert.alert("Atenção", "Informe o valor para o troco.");
@@ -477,12 +498,7 @@ const FinalizaPedido = () => {
       }
 
       // Mapeia o tipo de pagamento pra um label legível
-      const labelPagamento =
-        tipoPagamento === "credito"
-          ? "Cartão de Crédito"
-          : tipoPagamento === "pix"
-          ? "PIX"
-          : "Dinheiro";
+      const labelPagamento = tipoPagamento === "pix" ? "PIX" : "Dinheiro";
 
       // Limpa a cesta após o pedido ser persistido com sucesso
       limparCesta();
@@ -513,19 +529,6 @@ const FinalizaPedido = () => {
 
   const formatarMoeda = (valor: number) => {
     return `R$ ${valor.toFixed(2).replace(".", ",")}`;
-  };
-
-  const formatarCartao = (valor: string) => {
-    const numero = valor.replace(/\D/g, "");
-    return numero.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
-  };
-
-  const formatarValidade = (valor: string) => {
-    const numero = valor.replace(/\D/g, "");
-    if (numero.length >= 2) {
-      return numero.slice(0, 2) + "/" + numero.slice(2, 4);
-    }
-    return numero;
   };
 
   return (
@@ -794,96 +797,24 @@ const FinalizaPedido = () => {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Pagamento</Text>
 
-          <TouchableOpacity
-            style={styles.radioOption}
-            onPress={() => setTipoPagamento("credito")}
-          >
-            <View
-              style={[
-                styles.radioButton,
-                tipoPagamento === "credito" && styles.radioButtonSelected,
-              ]}
+          {pixDisponivel && (
+            <TouchableOpacity
+              style={styles.radioOption}
+              onPress={() => setTipoPagamento("pix")}
             >
-              {tipoPagamento === "credito" && (
-                <View style={styles.radioButtonDot} />
-              )}
-            </View>
-            <Text style={styles.radioTitle}>Cartão de Crédito</Text>
-          </TouchableOpacity>
-
-          {tipoPagamento === "credito" && (
-            <View style={styles.cartaoInputs}>
-              <View style={styles.cartaoNumeroContainer}>
-                <Text style={styles.cartaoLabel}>Número do cartão</Text>
-                <TextInput
-                  style={[styles.input, styles.cartaoNumeroInput]}
-                  placeholder="0000 0000 0000 0000"
-                  placeholderTextColor="#999"
-                  value={numeroCartao}
-                  onChangeText={(text) => setNumeroCartao(formatarCartao(text))}
-                  keyboardType="numeric"
-                  maxLength={19}
-                />
+              <View
+                style={[
+                  styles.radioButton,
+                  tipoPagamento === "pix" && styles.radioButtonSelected,
+                ]}
+              >
+                {tipoPagamento === "pix" && (
+                  <View style={styles.radioButtonDot} />
+                )}
               </View>
-
-              <View style={styles.cartaoDetalhesRow}>
-                <View style={styles.cartaoDetalhesItem}>
-                  <Text style={styles.cartaoLabel}>Validade</Text>
-                  <TextInput
-                    style={[styles.input, styles.cartaoDetalhesInput]}
-                    placeholder="MM/AA"
-                    placeholderTextColor="#999"
-                    value={validadeCartao}
-                    onChangeText={(text) =>
-                      setValidadeCartao(formatarValidade(text))
-                    }
-                    keyboardType="numeric"
-                    maxLength={5}
-                  />
-                </View>
-
-                <View style={styles.cartaoDetalhesItem}>
-                  <Text style={styles.cartaoLabel}>CVV</Text>
-                  <TextInput
-                    style={[styles.input, styles.cartaoDetalhesInput]}
-                    placeholder="123"
-                    placeholderTextColor="#999"
-                    value={cvvCartao}
-                    onChangeText={setCvvCartao}
-                    keyboardType="numeric"
-                    maxLength={4}
-                    secureTextEntry
-                  />
-                </View>
-              </View>
-
-              <View style={styles.cartaoInfo}>
-                <Ionicons name="shield-checkmark" size={16} color="#2D5D31" />
-                <Text style={styles.cartaoInfoText}>
-                  Seus dados estão seguros e protegidos
-                </Text>
-              </View>
-            </View>
+              <Text style={styles.radioTitle}>PIX</Text>
+            </TouchableOpacity>
           )}
-
-          <View style={styles.espacamentoCartao} />
-
-          <TouchableOpacity
-            style={styles.radioOption}
-            onPress={() => setTipoPagamento("pix")}
-          >
-            <View
-              style={[
-                styles.radioButton,
-                tipoPagamento === "pix" && styles.radioButtonSelected,
-              ]}
-            >
-              {tipoPagamento === "pix" && (
-                <View style={styles.radioButtonDot} />
-              )}
-            </View>
-            <Text style={styles.radioTitle}>PIX</Text>
-          </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.radioOption}
@@ -983,10 +914,9 @@ const FinalizaPedido = () => {
         total={totalPedido}
         tipoEntrega={tipoEntrega}
         horario={horarioSelecionado}
-        numeroCartao={numeroCartao}
-        validadeCartao={validadeCartao}
         trocoDinheiro={trocoDinheiro}
         itens={cestaState.itens}
+        chavePix={chavePixFeirante}
         onConfirmar={enviarPedido}
         onFechar={() => {
           if (!enviandoPedido) setModalConfirmacaoVisivel(false);
@@ -1002,23 +932,22 @@ const FinalizaPedido = () => {
 // Exibido depois das validações iniciais e antes do POST do pedido. Mostra
 // resumo dos itens, total, e detalhes da forma de pagamento:
 //   - PIX     → bloco "QR" mockado + chave (copiar) + valor a pagar
-//   - Cartão  → últimos 4 dígitos + validade
 //   - Dinheiro → valor total + troco calculado
 // ─────────────────────────────────────────────────────────────────────────────
 
 type ModalConfirmacaoPagamentoProps = {
   visivel: boolean;
   enviando: boolean;
-  tipoPagamento: "credito" | "pix" | "dinheiro";
+  tipoPagamento: "pix" | "dinheiro";
   subtotal: number;
   frete: number;
   total: number;
   tipoEntrega: "endereco" | "feira";
   horario: string;
-  numeroCartao: string;
-  validadeCartao: string;
   trocoDinheiro: string;
   itens: ItemCesta[];
+  /** Chave PIX real do feirante (null quando não cadastrada). */
+  chavePix: string | null;
   onConfirmar: () => void;
   onFechar: () => void;
 };
@@ -1033,25 +962,24 @@ function ModalConfirmacaoPagamento(props: ModalConfirmacaoPagamentoProps) {
     total,
     tipoEntrega,
     horario,
-    numeroCartao,
-    validadeCartao,
     trocoDinheiro,
     itens,
+    chavePix,
     onConfirmar,
     onFechar,
   } = props;
 
   const fmtMoeda = (v: number) => `R$ ${v.toFixed(2).replace(".", ",")}`;
 
-  // PIX mockado — em produção, esses dados viriam do gateway (Mercado Pago,
-  // Pagar.me, etc.). A chave aqui é só uma estrutura visual representativa.
-  const chavePix =
-    "00020126360014BR.GOV.BCB.PIX0114+55119999999990204000053039865802BR5919FEIRO MARKETPLACE6009SAO PAULO62070503***6304ABCD";
+  // Chave PIX real do feirante (vinda do banco via GET /feirantes/:id).
+  // Quando null, o feirante ainda não cadastrou chave — a UI mostra aviso.
+  const temChavePix = typeof chavePix === "string" && chavePix.length > 0;
 
   async function copiarChavePix() {
+    if (!temChavePix) return;
     try {
       await Share.share({
-        message: chavePix,
+        message: chavePix as string,
         title: "Chave PIX para copiar",
       });
     } catch {
@@ -1059,7 +987,6 @@ function ModalConfirmacaoPagamento(props: ModalConfirmacaoPagamentoProps) {
     }
   }
 
-  const ultimos4 = numeroCartao.replace(/\s/g, "").slice(-4);
   const trocoNum = parseFloat(trocoDinheiro.replace(",", ".")) || 0;
   const troco = Math.max(0, trocoNum - total);
 
@@ -1072,56 +999,37 @@ function ModalConfirmacaoPagamento(props: ModalConfirmacaoPagamentoProps) {
             <Ionicons name="qr-code" size={20} color="#255336" />
             <Text style={mp.pgTitulo}>Pagamento via PIX</Text>
           </View>
-          {/* Placeholder visual do QR — um grid 8x8 estilizado.
-              Em produção, substituir por <QRCode value={chavePix} /> real
-              (ex: react-native-qrcode-svg) gerado pelo gateway. */}
-          <View style={mp.qrPlaceholder}>
-            <View style={mp.qrInner}>
-              {Array.from({ length: 64 }).map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    mp.qrCell,
-                    // Padrão pseudo-aleatório só pra dar visual de QR
-                    (i * 7 + 3) % 5 < 2 && mp.qrCellBlack,
-                  ]}
-                />
-              ))}
-            </View>
-            <Text style={mp.qrLabel}>QR PIX</Text>
-          </View>
-          <TouchableOpacity style={mp.copiarBtn} onPress={copiarChavePix}>
-            <Ionicons name="copy-outline" size={16} color="#255336" />
-            <Text style={mp.copiarBtnTexto}>Copiar chave PIX</Text>
-          </TouchableOpacity>
-          <Text style={mp.pgAviso}>
-            Escaneie ou copie a chave acima no app do seu banco. O pedido será
-            preparado assim que confirmarmos o pagamento.
-          </Text>
-        </View>
-      );
-    }
 
-    if (tipoPagamento === "credito") {
-      return (
-        <View style={mp.pgBox}>
-          <View style={mp.pgHeader}>
-            <Ionicons name="card" size={20} color="#255336" />
-            <Text style={mp.pgTitulo}>Cartão de Crédito</Text>
-          </View>
-          <View style={mp.cartaoLinha}>
-            <Text style={mp.cartaoLabel}>Número</Text>
-            <Text style={mp.cartaoValor}>
-              •••• •••• •••• {ultimos4 || "0000"}
-            </Text>
-          </View>
-          <View style={mp.cartaoLinha}>
-            <Text style={mp.cartaoLabel}>Validade</Text>
-            <Text style={mp.cartaoValor}>{validadeCartao || "MM/AA"}</Text>
-          </View>
-          <Text style={mp.pgAviso}>
-            A cobrança será autorizada em {fmtMoeda(total)} ao confirmar.
-          </Text>
+          {temChavePix ? (
+            <>
+              <View style={mp.chaveBox}>
+                <Text style={mp.chaveLabel}>Chave PIX do feirante</Text>
+                <Text style={mp.chaveValor} numberOfLines={2}>
+                  {chavePix}
+                </Text>
+              </View>
+              <TouchableOpacity style={mp.copiarBtn} onPress={copiarChavePix}>
+                <Ionicons name="copy-outline" size={16} color="#255336" />
+                <Text style={mp.copiarBtnTexto}>Copiar chave PIX</Text>
+              </TouchableOpacity>
+              <Text style={mp.pgAviso}>
+                Copie a chave acima e pague no app do seu banco. O pedido será
+                preparado assim que o feirante confirmar o pagamento.
+              </Text>
+            </>
+          ) : (
+            <View style={mp.semChaveBox}>
+              <Ionicons
+                name="alert-circle-outline"
+                size={22}
+                color="#B8860B"
+              />
+              <Text style={mp.semChaveTexto}>
+                Este feirante ainda não cadastrou uma chave PIX. Escolha outra
+                forma de pagamento ou combine o pagamento na entrega.
+              </Text>
+            </View>
+          )}
         </View>
       );
     }
@@ -1178,7 +1086,7 @@ function ModalConfirmacaoPagamento(props: ModalConfirmacaoPagamentoProps) {
 
           <ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 12 }}
+            contentContainerStyle={{ paddingBottom: 20 }}
           >
             {/* Resumo dos itens */}
             <View style={mp.resumoBox}>
@@ -1389,47 +1297,53 @@ const mp = StyleSheet.create({
     marginBottom: 10,
   },
   pgTitulo: { fontSize: 14, fontWeight: "700", color: "#255336" },
+
+  // Chave PIX real do feirante
+  chaveBox: {
+    backgroundColor: "#F3F7F3",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#DCE7DC",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  chaveLabel: {
+    fontSize: 11,
+    color: "#7A8A7C",
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  chaveValor: {
+    fontSize: 14,
+    color: "#255336",
+    fontWeight: "700",
+  },
+
+  // Aviso quando o feirante não tem chave PIX cadastrada
+  semChaveBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "#FCF6E6",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#EFE0B8",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  semChaveTexto: {
+    flex: 1,
+    fontSize: 12,
+    color: "#8A6D1B",
+    lineHeight: 17,
+  },
+
   pgAviso: {
     fontSize: 11,
     color: "#7A8A7C",
     lineHeight: 15,
     marginTop: 10,
     textAlign: "center",
-  },
-
-  // QR placeholder — visual de "código QR" sem dependência externa
-  qrPlaceholder: {
-    alignSelf: "center",
-    width: 180,
-    height: 200,
-    backgroundColor: "#FFF",
-    borderWidth: 1,
-    borderColor: "#DDD",
-    borderRadius: 10,
-    padding: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    marginVertical: 8,
-  },
-  qrInner: {
-    width: 144,
-    height: 144,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    backgroundColor: "#FFF",
-  },
-  qrCell: {
-    width: 18,
-    height: 18,
-    backgroundColor: "#FFF",
-  },
-  qrCellBlack: { backgroundColor: "#222" },
-  qrLabel: {
-    marginTop: 6,
-    fontSize: 10,
-    color: "#999",
-    fontWeight: "600",
-    letterSpacing: 1,
   },
 
   copiarBtn: {
@@ -1444,6 +1358,7 @@ const mp = StyleSheet.create({
     paddingHorizontal: 14,
     backgroundColor: "#FFF",
     alignSelf: "center",
+    marginTop: 12,
   },
   copiarBtnTexto: { color: "#255336", fontSize: 12, fontWeight: "700" },
 
@@ -1458,7 +1373,10 @@ const mp = StyleSheet.create({
   botoes: {
     flexDirection: "row",
     gap: 10,
-    marginTop: 8,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#EAEFEA",
   },
   botaoSecundario: {
     flex: 1,
@@ -1703,57 +1621,6 @@ const styles = StyleSheet.create({
     color: "#333",
     borderWidth: 1,
     borderColor: "#E0E0E0",
-  },
-  cartaoInputs: {
-    marginTop: 20,
-    backgroundColor: "#F8F9FA",
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-  },
-  cartaoNumeroContainer: {
-    marginBottom: 16,
-  },
-  cartaoLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 8,
-  },
-  cartaoNumeroInput: {
-    fontSize: 18,
-    letterSpacing: 2,
-    fontFamily: "monospace",
-  },
-  cartaoDetalhesRow: {
-    flexDirection: "row",
-    gap: 16,
-    marginBottom: 16,
-  },
-  cartaoDetalhesItem: {
-    flex: 1,
-  },
-  cartaoDetalhesInput: {
-    textAlign: "center",
-    fontSize: 16,
-    fontFamily: "monospace",
-  },
-  cartaoInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "#F0F8F0",
-    padding: 12,
-    borderRadius: 8,
-  },
-  cartaoInfoText: {
-    fontSize: 12,
-    color: "#2D5D31",
-    fontWeight: "500",
-  },
-  espacamentoCartao: {
-    height: 24,
   },
   checkboxCard: {
     flexDirection: "row",

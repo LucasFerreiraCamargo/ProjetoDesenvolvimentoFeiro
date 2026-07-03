@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -41,20 +40,6 @@ function formatarQuantidade(qtd: number, unidade?: Unidade | string | null): str
 /** Formata em moeda BRL ("R$ 12,90"). */
 function fmtMoeda(v: number): string {
   return `R$ ${v.toFixed(2).replace('.', ',')}`
-}
-
-/**
- * Converte um telefone do banco (pode vir com máscara) num número
- * pronto pra ser usado em wa.me. Retorna null se não houver dígitos suficientes.
- * Assume Brasil (55) quando vier sem código do país.
- */
-function normalizaTelefoneParaWhatsapp(tel?: string | null): string | null {
-  if (!tel) return null
-  const digitos = String(tel).replace(/\D/g, '')
-  if (digitos.length < 10) return null // muito curto pra ser fixo+DDD válido
-  // Se já tem código de país (55), mantém. Senão prefixa.
-  if (digitos.startsWith('55') && digitos.length >= 12) return digitos
-  return `55${digitos}`
 }
 
 // Status que aparecem nos chips de transição manual. Os terminais (CANCELADO e
@@ -251,31 +236,6 @@ export default function PedidoDetalhe() {
     )
   }
 
-  async function abrirWhatsapp() {
-    const telefone = normalizaTelefoneParaWhatsapp(pedido?.usuario?.telefone)
-    if (!telefone) {
-      Alert.alert('Telefone indisponível', 'Este cliente não tem telefone cadastrado.')
-      return
-    }
-    const nomeCliente = pedido?.usuario?.nome ?? 'cliente'
-    const saudacao = `Olá ${nomeCliente}, aqui é do Feirô. Estou entrando em contato sobre o seu pedido #${pedido.id}.`
-    const mensagem = encodeURIComponent(saudacao)
-    const url = `https://wa.me/${telefone}?text=${mensagem}`
-    try {
-      const podeAbrir = await Linking.canOpenURL(url)
-      if (!podeAbrir) {
-        Alert.alert(
-          'WhatsApp indisponível',
-          'Não foi possível abrir o WhatsApp neste dispositivo.'
-        )
-        return
-      }
-      await Linking.openURL(url)
-    } catch (e) {
-      console.warn('[Pedido] Falha ao abrir WhatsApp:', e)
-      Alert.alert('Erro', 'Não foi possível abrir o WhatsApp.')
-    }
-  }
 
   async function deletarPedido() {
     setDeleting(true)
@@ -375,18 +335,6 @@ export default function PedidoDetalhe() {
             >
               <Ionicons name="chatbubbles" size={20} color="#FFFFFF" />
               <Text style={styles.chatBtnText}>Conversar com cliente</Text>
-            </TouchableOpacity>
-          ) : null}
-
-          {/* Botão WhatsApp: só aparece se o cliente tem telefone válido */}
-          {normalizaTelefoneParaWhatsapp(pedido.usuario.telefone) ? (
-            <TouchableOpacity
-              style={styles.whatsappBtn}
-              onPress={abrirWhatsapp}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
-              <Text style={styles.whatsappBtnText}>Falar pelo WhatsApp</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -722,16 +670,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   itemEmoji: { fontSize: 24 },
-  whatsappBtn: {
-    marginTop: 12,
-    backgroundColor: '#25D366',
-    borderRadius: 8,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
   chatBtn: {
     marginTop: 12,
     backgroundColor: '#4A7C59',
@@ -743,7 +681,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   chatBtnText: { color: '#FFFFFF', fontSize: 14, fontFamily: 'Poppins-SemiBold' },
-  whatsappBtnText: { color: '#FFFFFF', fontSize: 14, fontFamily: 'Poppins-SemiBold' },
   itemNome: { fontSize: 14, fontFamily: 'Poppins-SemiBold', color: '#333333' },
   itemPrecoUnit: { fontSize: 12, fontFamily: 'Poppins-Regular', color: '#666666' },
   itemQtd: { fontSize: 13, fontFamily: 'Poppins-Regular', color: '#666666' },

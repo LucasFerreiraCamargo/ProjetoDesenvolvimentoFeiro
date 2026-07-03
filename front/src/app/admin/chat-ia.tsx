@@ -17,6 +17,7 @@ import {
   Alert,
   FlatList,
   Keyboard,
+  Linking,
   Platform,
   StyleSheet,
   Text,
@@ -45,6 +46,39 @@ function resultadoParaDataUri(asset: ImagePicker.ImagePickerAsset): string | nul
     asset.mimeType ||
     (asset.fileName?.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg')
   return `data:${mime};base64,${asset.base64}`
+}
+
+// Detecta URLs (http/https) dentro do texto. Usado pra transformar links —
+// ex.: rota do Google Maps — em trechos azuis clicáveis.
+const REGEX_URL = /(https?:\/\/[^\s]+)/g
+
+async function abrirLink(url: string) {
+  // Remove pontuação final que costuma "grudar" no fim da URL (., ), etc.)
+  const limpa = url.replace(/[.,);]+$/, '')
+  try {
+    await Linking.openURL(limpa)
+  } catch {
+    Alert.alert('Link', 'Não consegui abrir este link.')
+  }
+}
+
+/**
+ * Quebra o texto em trechos comuns e links, renderizando as URLs como <Text>
+ * azul clicável. O <Text> pai é `selectable`, então o usuário também consegue
+ * copiar qualquer resposta.
+ */
+function renderTextoComLinks(texto: string, estiloLink: object) {
+  const partes = texto.split(REGEX_URL)
+  return partes.map((parte, i) => {
+    if (i % 2 === 1) {
+      return (
+        <Text key={i} style={estiloLink} onPress={() => abrirLink(parte)}>
+          {parte}
+        </Text>
+      )
+    }
+    return parte
+  })
 }
 
 /** Sugestões da tela inicial. `foto` dispara o cadastro por imagem (Gemini). */
@@ -300,8 +334,11 @@ export default function ChatIaScreen() {
           </View>
         )}
         <View style={[styles.balao, ehMeu ? styles.balaoMeu : styles.balaoIa]}>
-          <Text style={[styles.balaoTexto, ehMeu ? styles.txtMeu : styles.txtIa]}>
-            {item.texto}
+          <Text
+            selectable
+            style={[styles.balaoTexto, ehMeu ? styles.txtMeu : styles.txtIa]}
+          >
+            {renderTextoComLinks(item.texto, ehMeu ? styles.linkMeu : styles.linkIa)}
           </Text>
           <Text style={[styles.hora, ehMeu ? styles.horaMeu : styles.horaIa]}>
             {hora}
@@ -471,6 +508,10 @@ const styles = StyleSheet.create({
   balaoTexto: { fontSize: 14, lineHeight: 19 },
   txtMeu: { color: '#FFF' },
   txtIa: { color: '#333' },
+  // Links clicáveis: azul sublinhado. No balão verde (meu), um azul claro
+  // pra manter contraste sobre o fundo escuro.
+  linkIa: { color: '#1B6FE0', textDecorationLine: 'underline' },
+  linkMeu: { color: '#BFE0FF', textDecorationLine: 'underline' },
   hora: { fontSize: 10, marginTop: 2, alignSelf: 'flex-end' },
   horaMeu: { color: '#D8E4D8' },
   horaIa: { color: '#999' },

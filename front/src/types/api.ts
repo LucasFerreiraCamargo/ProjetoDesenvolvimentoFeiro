@@ -118,6 +118,10 @@ export interface Feirante {
   foto?: string | null;
   avatar?: string | null;
   especialidade?: string | null;
+  /** Chave PIX cadastrada pelo feirante (normalizada). */
+  chave_pix?: string | null;
+  /** Tipo da chave PIX: cpf | cnpj | email | telefone | aleatoria. */
+  tipo_chave_pix?: string | null;
   status?: StatusAberto | null;
   feiraId?: number | null;
   /** Presente apenas quando a rota faz `include: { feira: true }`. */

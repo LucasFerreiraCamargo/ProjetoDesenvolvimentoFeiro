@@ -56,6 +56,103 @@ const DIAS_SEMANA = [
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Chave PIX — tipos, máscaras e validação
+// O tipo é guardado separado do valor pra permitir formatação/validação por
+// tipo e exibir a chave já mascarada no comprovante.
+// ─────────────────────────────────────────────────────────────────────────────
+
+type TipoChavePix = 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria'
+
+const TIPOS_PIX: { valor: TipoChavePix; label: string; icone: any }[] = [
+  { valor: 'cpf', label: 'CPF', icone: 'person-outline' },
+  { valor: 'cnpj', label: 'CNPJ', icone: 'business-outline' },
+  { valor: 'email', label: 'E-mail', icone: 'mail-outline' },
+  { valor: 'telefone', label: 'Telefone', icone: 'call-outline' },
+  { valor: 'aleatoria', label: 'Aleatória', icone: 'key-outline' },
+]
+
+function mascararCpf(raw: string): string {
+  const d = raw.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 3) return d
+  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`
+  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`
+}
+
+function mascararCnpj(raw: string): string {
+  const d = raw.replace(/\D/g, '').slice(0, 14)
+  if (d.length <= 2) return d
+  if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`
+  if (d.length <= 8) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`
+  if (d.length <= 12)
+    return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`
+}
+
+function mascararTelefonePix(raw: string): string {
+  const d = raw.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 2) return d.length ? `(${d}` : ''
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+}
+
+/** Aplica a máscara adequada ao tipo enquanto o feirante digita. */
+function mascararChavePix(tipo: TipoChavePix, raw: string): string {
+  if (tipo === 'cpf') return mascararCpf(raw)
+  if (tipo === 'cnpj') return mascararCnpj(raw)
+  if (tipo === 'telefone') return mascararTelefonePix(raw)
+  return raw // email e aleatória não têm máscara
+}
+
+/**
+ * Normaliza a chave para persistência: dígitos puros em cpf/cnpj/telefone,
+ * texto limpo em email/aleatória. É o que vai pro banco.
+ */
+function normalizarChavePix(tipo: TipoChavePix, valor: string): string {
+  if (tipo === 'cpf' || tipo === 'cnpj' || tipo === 'telefone') {
+    return valor.replace(/\D/g, '')
+  }
+  return valor.trim()
+}
+
+/** Retorna mensagem de erro se a chave for inválida para o tipo, ou null. */
+function validarChavePix(tipo: TipoChavePix, valor: string): string | null {
+  const bruto = normalizarChavePix(tipo, valor)
+  if (!bruto) return 'Informe a chave PIX.'
+  switch (tipo) {
+    case 'cpf':
+      return bruto.length === 11 ? null : 'CPF deve ter 11 dígitos.'
+    case 'cnpj':
+      return bruto.length === 14 ? null : 'CNPJ deve ter 14 dígitos.'
+    case 'telefone':
+      return bruto.length >= 10 && bruto.length <= 11
+        ? null
+        : 'Telefone deve ter 10 ou 11 dígitos (com DDD).'
+    case 'email':
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(bruto)
+        ? null
+        : 'E-mail inválido.'
+    case 'aleatoria':
+      return bruto.length >= 32
+        ? null
+        : 'A chave aleatória tem 32+ caracteres.'
+    default:
+      return null
+  }
+}
+
+/** Formata a chave (já normalizada, vinda do banco) para exibição. */
+function formatarChavePixExibicao(
+  tipo: TipoChavePix | null | undefined,
+  valor: string | null | undefined,
+): string {
+  if (!valor) return '—'
+  if (!tipo) return valor
+  return mascararChavePix(tipo, valor)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Componente Accordion: header clicável + conteúdo expansível
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -303,6 +400,14 @@ export default function AdminPerfil() {
     telefone: '',
   })
 
+  // Edição da chave PIX (tipo + valor)
+  const [editandoPix, setEditandoPix] = useState(false)
+  const [salvandoPix, setSalvandoPix] = useState(false)
+  const [pixForm, setPixForm] = useState<{ tipo: TipoChavePix; chave: string }>({
+    tipo: 'cpf',
+    chave: '',
+  })
+
   // Accordions
   const [abertoRaio, setAbertoRaio] = useState(false)
   const [abertoFunc, setAbertoFunc] = useState(false)
@@ -339,6 +444,15 @@ export default function AdminPerfil() {
           banca: data.banca ?? '',
           especialidade: data.especialidade ?? '',
           telefone: data.telefone ?? '',
+        })
+        setPixForm({
+          tipo: (data.tipo_chave_pix as TipoChavePix) ?? 'cpf',
+          chave: data.chave_pix
+            ? mascararChavePix(
+                (data.tipo_chave_pix as TipoChavePix) ?? 'cpf',
+                data.chave_pix,
+              )
+            : '',
         })
       }
     } catch {
@@ -509,6 +623,64 @@ export default function AdminPerfil() {
       })
     }
     setEditandoBanca(false)
+  }
+
+  /** Valida e dispara PATCH /feirantes/:id com a chave PIX normalizada. */
+  async function salvarPix() {
+    if (!admin?.feiranteId || !admin?.token) return
+
+    const erro = validarChavePix(pixForm.tipo, pixForm.chave)
+    if (erro) {
+      Alert.alert('Chave PIX inválida', erro)
+      return
+    }
+
+    const chaveNormalizada = normalizarChavePix(pixForm.tipo, pixForm.chave)
+
+    setSalvandoPix(true)
+    try {
+      const res = await adminFetch(
+        `/feirantes/${admin.feiranteId}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            chave_pix: chaveNormalizada,
+            tipo_chave_pix: pixForm.tipo,
+          }),
+        },
+        admin.token,
+      )
+      if (res.ok) {
+        const atualizado = await res.json()
+        setFeirante((prev: any) => ({ ...(prev ?? {}), ...(atualizado ?? {}) }))
+        setEditandoPix(false)
+        Alert.alert('Sucesso', 'Chave PIX salva com sucesso!')
+      } else {
+        const body = await res.json().catch(() => ({}))
+        Alert.alert(
+          'Não foi possível salvar',
+          typeof body?.erro === 'string' ? body.erro : `Erro ${res.status}`,
+        )
+      }
+    } catch (e: any) {
+      Alert.alert('Erro', e?.message ?? 'Falha de conexão.')
+    } finally {
+      setSalvandoPix(false)
+    }
+  }
+
+  /** Cancela a edição da chave PIX e restaura o valor atual da API. */
+  function cancelarEdicaoPix() {
+    if (feirante) {
+      const tipo = (feirante.tipo_chave_pix as TipoChavePix) ?? 'cpf'
+      setPixForm({
+        tipo,
+        chave: feirante.chave_pix
+          ? mascararChavePix(tipo, feirante.chave_pix)
+          : '',
+      })
+    }
+    setEditandoPix(false)
   }
 
   function sair() {
@@ -684,6 +856,153 @@ export default function AdminPerfil() {
                 </View>
               ) : null}
             </>
+          )}
+        </View>
+      )}
+
+      {/* ── Chave PIX (editável) ── */}
+      {admin?.nivel === 2 && feirante && (
+        <View style={styles.card}>
+          <View style={bancaStyles.headerRow}>
+            <Text style={styles.secaoTitulo}>
+              <Ionicons name="qr-code-outline" size={16} color="#255336" />{' '}
+              Chave PIX
+            </Text>
+            {!editandoPix && (
+              <TouchableOpacity
+                onPress={() => setEditandoPix(true)}
+                style={bancaStyles.editarBtn}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="pencil-outline" size={14} color="#255336" />
+                <Text style={bancaStyles.editarBtnTxt}>
+                  {feirante.chave_pix ? 'Editar' : 'Cadastrar'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {editandoPix ? (
+            <>
+              <Text style={bancaStyles.label}>Tipo da chave</Text>
+              <View style={pixStyles.tipoGrid}>
+                {TIPOS_PIX.map((t) => {
+                  const ativo = pixForm.tipo === t.valor
+                  return (
+                    <TouchableOpacity
+                      key={t.valor}
+                      style={[
+                        pixStyles.tipoChip,
+                        ativo && pixStyles.tipoChipAtivo,
+                      ]}
+                      onPress={() =>
+                        // Troca o tipo e limpa a chave (a máscara muda).
+                        setPixForm({ tipo: t.valor, chave: '' })
+                      }
+                      activeOpacity={0.8}
+                      disabled={salvandoPix}
+                    >
+                      <Ionicons
+                        name={t.icone}
+                        size={14}
+                        color={ativo ? '#FFFFFF' : '#255336'}
+                      />
+                      <Text
+                        style={[
+                          pixStyles.tipoChipTxt,
+                          ativo && pixStyles.tipoChipTxtAtivo,
+                        ]}
+                      >
+                        {t.label}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
+
+              <Text style={bancaStyles.label}>Chave</Text>
+              <TextInput
+                style={bancaStyles.input}
+                value={pixForm.chave}
+                onChangeText={(t) =>
+                  setPixForm((f) => ({
+                    ...f,
+                    chave: mascararChavePix(f.tipo, t),
+                  }))
+                }
+                placeholder={
+                  pixForm.tipo === 'cpf'
+                    ? '000.000.000-00'
+                    : pixForm.tipo === 'cnpj'
+                    ? '00.000.000/0000-00'
+                    : pixForm.tipo === 'email'
+                    ? 'voce@email.com'
+                    : pixForm.tipo === 'telefone'
+                    ? '(11) 98765-4321'
+                    : 'Cole a chave aleatória'
+                }
+                keyboardType={
+                  pixForm.tipo === 'cpf' ||
+                  pixForm.tipo === 'cnpj' ||
+                  pixForm.tipo === 'telefone'
+                    ? 'number-pad'
+                    : pixForm.tipo === 'email'
+                    ? 'email-address'
+                    : 'default'
+                }
+                autoCapitalize="none"
+                editable={!salvandoPix}
+                maxLength={pixForm.tipo === 'aleatoria' ? 140 : 40}
+              />
+
+              <View style={bancaStyles.botoesRow}>
+                <TouchableOpacity
+                  style={[
+                    bancaStyles.btnCancelar,
+                    salvandoPix && { opacity: 0.5 },
+                  ]}
+                  onPress={cancelarEdicaoPix}
+                  disabled={salvandoPix}
+                >
+                  <Text style={bancaStyles.btnCancelarTxt}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[bancaStyles.btnSalvar, salvandoPix && { opacity: 0.7 }]}
+                  onPress={salvarPix}
+                  disabled={salvandoPix}
+                >
+                  {salvandoPix ? (
+                    <ActivityIndicator color="#FFF" size="small" />
+                  ) : (
+                    <Text style={bancaStyles.btnSalvarTxt}>Salvar</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : feirante.chave_pix ? (
+            <>
+              <View style={styles.linhaInfo}>
+                <Text style={styles.infoLabel}>Tipo:</Text>
+                <Text style={styles.infoValor}>
+                  {TIPOS_PIX.find((t) => t.valor === feirante.tipo_chave_pix)
+                    ?.label ?? '—'}
+                </Text>
+              </View>
+              <View style={styles.linhaInfo}>
+                <Text style={styles.infoLabel}>Chave:</Text>
+                <Text style={styles.infoValor}>
+                  {formatarChavePixExibicao(
+                    feirante.tipo_chave_pix,
+                    feirante.chave_pix,
+                  )}
+                </Text>
+              </View>
+            </>
+          ) : (
+            <Text style={pixStyles.vazio}>
+              Nenhuma chave PIX cadastrada. Cadastre para receber pagamentos dos
+              pedidos.
+            </Text>
           )}
         </View>
       )}
@@ -1322,5 +1641,39 @@ const bancaStyles = StyleSheet.create({
     color: '#FFF',
     fontSize: 14,
     fontFamily: 'Poppins-SemiBold',
+  },
+})
+
+// Estilos do card "Chave PIX" — seletor de tipo em chips + estado vazio.
+const pixStyles = StyleSheet.create({
+  tipoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 2,
+  },
+  tipoChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#255336',
+    borderRadius: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+  },
+  tipoChipAtivo: { backgroundColor: '#255336' },
+  tipoChipTxt: {
+    fontSize: 13,
+    fontFamily: 'Poppins-SemiBold',
+    color: '#255336',
+  },
+  tipoChipTxtAtivo: { color: '#FFFFFF' },
+  vazio: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Regular',
+    color: '#7A8A7C',
+    lineHeight: 20,
+    fontStyle: 'italic',
   },
 })
