@@ -126,6 +126,8 @@ function mapMercadoriaParaProduto(m: any) {
     categoria: String(m.categoria ?? "").toLowerCase(),
     quantidade: 0,
     destaque: !!m.destaque,
+    // Pontos de maturação oferecidos pelo feirante (enum). Vazio = não oferece.
+    pontosMaturacao: Array.isArray(m.pontos_maturacao) ? m.pontos_maturacao : [],
   };
 }
 
@@ -304,8 +306,15 @@ export default function ProdutosFeiranteScreen() {
     [key: string]: number;
   }>({});
 
-  // Opções de maturação
-  const maturationOptions = ["Maduro", "Ao Ponto", "Verde"];
+  // Rótulos legíveis dos pontos de maturação (enum → texto exibido).
+  const PONTO_LABELS: Record<string, string> = {
+    VERDE: "Verde",
+    AO_PONTO: "Ao Ponto",
+    MADURO: "Maduro",
+  };
+  // Pontos oferecidos por um produto (enum). Vazio = feirante não oferece.
+  const pontosDoProduto = (produto: any): string[] =>
+    Array.isArray(produto?.pontosMaturacao) ? produto.pontosMaturacao : [];
 
   // Lista de produtos em promoção (IDs) — agora derivada das mercadorias reais do feirante
   const promocoesIds = produtosFeirante
@@ -356,20 +365,23 @@ export default function ProdutosFeiranteScreen() {
 
   // Adicionar produto por unidade diretamente ao carrinho
   const addUnitProduct = (produto: any) => {
+    const oferece = pontosDoProduto(produto).length > 0;
     const maturation = selectedMaturation[produto.id];
-    if (!maturation) {
+    if (oferece && !maturation) {
       Alert.alert("Atenção", "Selecione o ponto de maturação desejado");
       return;
     }
 
     if (produto && feirante && feira) {
       const currentPrice = getCurrentPrice(produto, "unidade");
+      const sufixo =
+        oferece && maturation ? ` (${PONTO_LABELS[maturation] ?? maturation})` : "";
 
       adicionarItem({
         produtoId: produto.id,
         feiranteId: feirante.id,
         feiraId: feira.id,
-        nome: `${produto.nome} (${maturation})`,
+        nome: `${produto.nome}${sufixo}`,
         preco: currentPrice,
         unidade: "unid",
         unidadeApi: codigoUnidadeVenda(produto),
@@ -379,29 +391,33 @@ export default function ProdutosFeiranteScreen() {
         feiranteNome: feirante.nome,
         feiranteBanca: feirante.banca,
         feiraNome: feira.nome,
+        pontoMaturacao: oferece && maturation ? maturation : undefined,
       });
 
       // Resetar seleção de maturação
-      setSelectedMaturation((prev) => ({ ...prev, [produto.id]: "" }));
+      if (oferece) setSelectedMaturation((prev) => ({ ...prev, [produto.id]: "" }));
     }
   };
 
   // Adicionar múltiplas unidades de uma vez só
   const addMultipleUnits = (produto: any, quantity: number) => {
+    const oferece = pontosDoProduto(produto).length > 0;
     const maturation = selectedMaturation[produto.id];
-    if (!maturation) {
+    if (oferece && !maturation) {
       Alert.alert("Atenção", "Selecione o ponto de maturação desejado");
       return;
     }
 
     if (produto && feirante && feira) {
       const currentPrice = getCurrentPrice(produto, "unidade");
+      const label = oferece && maturation ? (PONTO_LABELS[maturation] ?? maturation) : "";
+      const sufixo = label ? ` (${label})` : "";
 
       adicionarItem({
         produtoId: produto.id,
         feiranteId: feirante.id,
         feiraId: feira.id,
-        nome: `${produto.nome} (${maturation})`,
+        nome: `${produto.nome}${sufixo}`,
         preco: currentPrice,
         unidade: "unid",
         unidadeApi: codigoUnidadeVenda(produto),
@@ -411,24 +427,26 @@ export default function ProdutosFeiranteScreen() {
         feiranteNome: feirante.nome,
         feiranteBanca: feirante.banca,
         feiraNome: feira.nome,
+        pontoMaturacao: oferece && maturation ? maturation : undefined,
       });
 
       Alert.alert(
         "Adicionado!",
-        `${quantity} ${produto.nome} (${maturation}) ${
+        `${quantity} ${produto.nome}${sufixo} ${
           quantity > 1 ? "adicionados" : "adicionado"
         } à cesta!`
       );
 
       // Resetar seleção de maturação
-      setSelectedMaturation((prev) => ({ ...prev, [produto.id]: "" }));
+      if (oferece) setSelectedMaturation((prev) => ({ ...prev, [produto.id]: "" }));
     }
   };
 
   // Adicionar produto por peso ao carrinho
   const addWeightProduct = (produto: any, gramas: number) => {
+    const oferece = pontosDoProduto(produto).length > 0;
     const maturation = selectedMaturation[produto.id];
-    if (!maturation) {
+    if (oferece && !maturation) {
       Alert.alert("Atenção", "Selecione o ponto de maturação desejado");
       return;
     }
@@ -440,12 +458,14 @@ export default function ProdutosFeiranteScreen() {
 
     if (produto && feirante && feira) {
       const preco = getCurrentPrice(produto, "peso");
+      const label = oferece && maturation ? (PONTO_LABELS[maturation] ?? maturation) : "";
+      const sufixo = label ? ` (${label})` : "";
 
       adicionarItem({
         produtoId: produto.id,
         feiranteId: feirante.id,
         feiraId: feira.id,
-        nome: `${produto.nome} (${maturation})`,
+        nome: `${produto.nome}${sufixo}`,
         preco: preco,
         unidade: "g",
         unidadeApi: "KG",
@@ -455,16 +475,17 @@ export default function ProdutosFeiranteScreen() {
         feiranteNome: feirante.nome,
         feiranteBanca: feirante.banca,
         feiraNome: feira.nome,
+        pontoMaturacao: oferece && maturation ? maturation : undefined,
       });
 
       // Resetar seleção
       setWeightQuantities((prev) => ({ ...prev, [produto.id]: 0 }));
       setCustomInput((prev) => ({ ...prev, [produto.id]: "" }));
-      setSelectedMaturation((prev) => ({ ...prev, [produto.id]: "" }));
+      if (oferece) setSelectedMaturation((prev) => ({ ...prev, [produto.id]: "" }));
 
       Alert.alert(
         "Adicionado!",
-        `${gramas}g de ${produto.nome} (${maturation}) adicionado à cesta!`
+        `${gramas}g de ${produto.nome}${sufixo} adicionado à cesta!`
       );
     }
   };
@@ -710,55 +731,10 @@ export default function ProdutosFeiranteScreen() {
               >
                 {feirante.nome}
               </Text>
-              <Text style={{ fontSize: 14, color: "#666", marginBottom: 4 }}>
-                {feirante.banca}
+              <Text style={{ fontSize: 12, color: "#999" }}>
+                ID #{feirante.id}
               </Text>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  marginBottom: 4,
-                }}
-              >
-                <View
-                  style={{
-                    width: 8,
-                    height: 8,
-                    backgroundColor: "#4CAF50",
-                    borderRadius: 4,
-                    marginRight: 6,
-                  }}
-                />
-                <Text
-                  style={{ fontSize: 12, color: "#4CAF50", fontWeight: "500" }}
-                >
-                  {feirante.status}
-                </Text>
-              </View>
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <Ionicons name="star" size={14} color="#FFD700" />
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: "#666",
-                    marginLeft: 4,
-                    marginRight: 2,
-                  }}
-                >
-                  {feirante.avaliacao}
-                </Text>
-                <Text style={{ fontSize: 12, color: "#999" }}>
-                  ({feirante.totalAvaliacoes})
-                </Text>
-              </View>
             </View>
-
-            <TouchableOpacity
-              style={styles.whatsappButton}
-              onPress={abrirWhatsApp}
-            >
-              <Ionicons name="logo-whatsapp" size={24} color="#25D366" />
-            </TouchableOpacity>
           </View>
         </View>
 
@@ -891,6 +867,9 @@ export default function ProdutosFeiranteScreen() {
           {produtosFiltrados.map((produto: any) => {
             const isPromotion = isProductInPromotion(produto);
             const maturation = selectedMaturation[produto.id] || "";
+            // Só bloqueia o "Adicionar" por maturação quando o produto de fato
+            // oferece pontos de maturação. Sem opções → livre pra adicionar.
+            const exigeMaturacao = pontosDoProduto(produto).length > 0;
             // Formas de venda derivadas das unidades cadastradas pelo feirante.
             const temPeso = temVendaPorPeso(produto); // tem KG
             const temUnidade = temVendaPorUnidade(produto); // tem UN/CX
@@ -962,51 +941,54 @@ export default function ProdutosFeiranteScreen() {
                   </View>
                 </View>
 
-                {/* Seleção de maturação */}
-                <View style={styles.maturationContainer}>
-                  <Text style={styles.maturationLabel}>
-                    Ponto de maturação: *
-                  </Text>
-                  <View style={styles.maturationOptions}>
-                    {maturationOptions.map((option) => (
-                      <TouchableOpacity
-                        key={option}
-                        style={[
-                          styles.maturationButton,
-                          maturation === option &&
-                            styles.maturationButtonActive,
-                        ]}
-                        onPress={() =>
-                          setSelectedMaturation((prev) => ({
-                            ...prev,
-                            [produto.id]: option,
-                          }))
-                        }
-                      >
-                        <View
+                {/* Seleção de maturação — só quando o feirante ofereceu
+                    ao menos um ponto para esta mercadoria. */}
+                {pontosDoProduto(produto).length > 0 && (
+                  <View style={styles.maturationContainer}>
+                    <Text style={styles.maturationLabel}>
+                      Ponto de maturação: *
+                    </Text>
+                    <View style={styles.maturationOptions}>
+                      {pontosDoProduto(produto).map((option) => (
+                        <TouchableOpacity
+                          key={option}
                           style={[
-                            styles.maturationRadio,
+                            styles.maturationButton,
                             maturation === option &&
-                              styles.maturationRadioActive,
+                              styles.maturationButtonActive,
                           ]}
+                          onPress={() =>
+                            setSelectedMaturation((prev) => ({
+                              ...prev,
+                              [produto.id]: option,
+                            }))
+                          }
                         >
-                          {maturation === option && (
-                            <View style={styles.maturationRadioInner} />
-                          )}
-                        </View>
-                        <Text
-                          style={[
-                            styles.maturationText,
-                            maturation === option &&
-                              styles.maturationTextActive,
-                          ]}
-                        >
-                          {option}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                          <View
+                            style={[
+                              styles.maturationRadio,
+                              maturation === option &&
+                                styles.maturationRadioActive,
+                            ]}
+                          >
+                            {maturation === option && (
+                              <View style={styles.maturationRadioInner} />
+                            )}
+                          </View>
+                          <Text
+                            style={[
+                              styles.maturationText,
+                              maturation === option &&
+                                styles.maturationTextActive,
+                            ]}
+                          >
+                            {PONTO_LABELS[option] ?? option}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
                   </View>
-                </View>
+                )}
 
                 {/* Forma de venda — só aparece quando o feirante cadastrou
                     AMBAS as formas (peso + unidade) para esta mercadoria. */}
@@ -1120,13 +1102,17 @@ export default function ProdutosFeiranteScreen() {
                     <TouchableOpacity
                       style={[
                         styles.addButton,
-                        (!maturation || !weightQuantities[produto.id]) &&
+                        ((exigeMaturacao && !maturation) ||
+                          !weightQuantities[produto.id]) &&
                           styles.addButtonDisabled,
                       ]}
                       onPress={() =>
                         addWeightProduct(produto, weightQuantities[produto.id])
                       }
-                      disabled={!maturation || !weightQuantities[produto.id]}
+                      disabled={
+                        (exigeMaturacao && !maturation) ||
+                        !weightQuantities[produto.id]
+                      }
                     >
                       <Ionicons name="add" size={20} color="#FFF" />
                       <Text style={styles.addButtonText}>Adicionar</Text>
@@ -1184,7 +1170,7 @@ export default function ProdutosFeiranteScreen() {
                     <TouchableOpacity
                       style={[
                         styles.addButton,
-                        !maturation && styles.addButtonDisabled,
+                        exigeMaturacao && !maturation && styles.addButtonDisabled,
                       ]}
                       onPress={() => {
                         const quantity = unitQuantities[produto.id] || 1;
@@ -1195,7 +1181,7 @@ export default function ProdutosFeiranteScreen() {
                           [produto.id]: 1,
                         }));
                       }}
-                      disabled={!maturation}
+                      disabled={exigeMaturacao && !maturation}
                     >
                       <Ionicons name="add" size={20} color="#FFF" />
                       <Text style={styles.addButtonText}>Adicionar</Text>

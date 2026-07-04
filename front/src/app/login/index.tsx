@@ -149,7 +149,7 @@ export default function LoginScreen() {
       {/* Link para criar conta */}
       <View style={styles.footerContainer}>
         <Text style={styles.footerText}>Ainda não tem uma conta? </Text>
-        <Pressable onPress={() => router.replace("../onboarding/index.tsx")} disabled={isLoading}>
+        <Pressable onPress={() => router.replace("/onboarding")} disabled={isLoading}>
           <Text style={styles.footerLink}>Cadastre-se</Text>
         </Pressable>
       </View>

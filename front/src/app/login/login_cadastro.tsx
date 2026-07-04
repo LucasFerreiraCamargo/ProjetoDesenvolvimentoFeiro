@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   Pressable,
   StyleSheet,
@@ -9,6 +10,27 @@ import {
   View,
 } from "react-native";
 import BotaoVoltar from "../../components/BotaoVoltar";
+
+// Base da API: mesma resolução usada no login (fallback local + strip da
+// barra final pra não gerar "//usuarios").
+const API_BASE = (
+  (process.env.EXPO_PUBLIC_API_URL as string) || "http://localhost:3001"
+).replace(/\/$/, "");
+
+// Só dígitos — o backend exige telefone com 10-11 dígitos, sem máscara.
+const soDigitos = (v: string) => v.replace(/\D/g, "");
+
+// Extrai a primeira mensagem legível do corpo de erro da API. O /usuarios
+// retorna { erro: [...] } (array Zod) em falha de validação, ou { erro: "..." }
+// em outros casos. O código antigo lia `data.error` e nunca achava nada.
+const extrairMensagemErro = (data: any): string | null => {
+  const e = data?.erro ?? data?.error;
+  if (!e) return null;
+  if (typeof e === "string") return e;
+  if (Array.isArray(e)) return e[0]?.message ?? "Dados inválidos";
+  if (typeof e?.message === "string") return e.message;
+  return null;
+};
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -19,21 +41,54 @@ export default function RegisterScreen() {
   const [telefone, setTelefone] = useState("");
   const [endereco, setEndereco] = useState("");
   const [bairro, setBairro] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Validação client-side espelhando as regras do backend, pra dar
+  // feedback imediato antes de bater na rede.
+  const validar = (): string | null => {
+    if (nome.trim().length < 2) return "Informe seu nome completo.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
+      return "Informe um e-mail válido.";
+    if (senha.length < 8)
+      return "A senha deve ter no mínimo 8 caracteres.";
+    if (!/[A-Z]/.test(senha))
+      return "A senha deve conter ao menos uma letra maiúscula.";
+    if (!/[^A-Za-z0-9]/.test(senha))
+      return "A senha deve conter ao menos um caractere especial.";
+    const tel = soDigitos(telefone);
+    if (tel.length < 10 || tel.length > 11)
+      return "Telefone deve ter 10 ou 11 dígitos (DDD + número).";
+    return null;
+  };
 
   const handleRegister = async () => {
+    if (isLoading) return;
+
+    const erroValidacao = validar();
+    if (erroValidacao) {
+      alert(erroValidacao);
+      return;
+    }
+
+    setIsLoading(true);
     try {
       // Endereço é tratado como sub-objeto `endereco_inicial` — o backend
       // cria o Usuario e o EnderecoUsuario "Casa" (principal) em uma única
       // transação. Se o cliente não preencher endereço, cadastra só o user
       // e ele adiciona depois em /perfil/enderecos.
-      const payload: any = { nome, email, senha, telefone };
+      const payload: any = {
+        nome: nome.trim(),
+        email: email.trim().toLowerCase(),
+        senha,
+        telefone: soDigitos(telefone),
+      };
       if (endereco.trim() && bairro.trim()) {
         payload.endereco_inicial = {
           endereco: endereco.trim(),
           bairro: bairro.trim(),
         };
       }
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/usuarios`, {
+      const response = await fetch(`${API_BASE}/usuarios`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -43,13 +98,15 @@ export default function RegisterScreen() {
 
       if (response.ok) {
         alert("Usuário cadastrado com sucesso!");
-        router.replace("/"); // volta para login
+        router.replace("/login");
       } else {
-        alert(data.error || "Erro ao cadastrar usuário");
+        alert(extrairMensagemErro(data) || "Erro ao cadastrar usuário");
       }
     } catch (err) {
       console.error(err);
       alert("Erro de conexão com servidor");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -96,10 +153,11 @@ export default function RegisterScreen() {
           />
           <TextInput
             style={styles.input}
-            placeholder="Telefone"
+            placeholder="Telefone (DDD + número)"
             value={telefone}
-            onChangeText={setTelefone}
+            onChangeText={(t) => setTelefone(soDigitos(t))}
             keyboardType="phone-pad"
+            maxLength={11}
           />
           <TextInput
             style={styles.input}
@@ -114,13 +172,21 @@ export default function RegisterScreen() {
             onChangeText={setBairro}
           />
 
-          <Pressable style={styles.entrarButton} onPress={handleRegister}>
-            <Text style={styles.entrarButtonText}>Cadastrar</Text>
+          <Pressable
+            style={[styles.entrarButton, isLoading && styles.entrarButtonDisabled]}
+            onPress={handleRegister}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.entrarButtonText}>Cadastrar</Text>
+            )}
           </Pressable>
 
           <View style={styles.footerContainer}>
             <Text style={styles.footerText}>Já tem conta? </Text>
-            <Pressable onPress={() => router.replace("/")}>
+            <Pressable onPress={() => router.replace("/login")}>
               <Text style={styles.footerLink}>Entrar</Text>
             </Pressable>
           </View>
@@ -202,6 +268,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginTop: 8,
+  },
+  entrarButtonDisabled: {
+    opacity: 0.7,
   },
   entrarButtonText: {
     color: "#FFFFFF",

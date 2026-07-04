@@ -28,6 +28,9 @@ export interface ItemCesta {
   tipo?: "produto" | "cesta"; // Para diferenciar produtos de cestas
   cestaId?: string; // ID da cesta original se for uma cesta
   precoOriginalCesta?: number; // Preço original da cesta (sem desconto)
+  // Ponto de maturação escolhido pelo cliente (enum VERDE/AO_PONTO/MADURO).
+  // Ausente quando o produto não oferece essa opção.
+  pontoMaturacao?: string;
 }
 
 interface CestaState {
@@ -84,7 +87,8 @@ function cestaReducer(state: CestaState, action: CestaAction): CestaState {
           item.produtoId === action.payload.produtoId &&
           item.feiranteId === action.payload.feiranteId &&
           item.unidade === action.payload.unidade &&
-          item.nome === action.payload.nome
+          item.nome === action.payload.nome &&
+          item.pontoMaturacao === action.payload.pontoMaturacao
       );
 
       let newState;
@@ -201,7 +205,7 @@ export const CestaProvider: React.FC<{ children: ReactNode }> = ({
       ...itemData,
       id: `${itemData.produtoId}-${itemData.feiranteId}-${
         itemData.unidade
-      }-${Date.now()}`,
+      }-${itemData.pontoMaturacao ?? "sm"}-${Date.now()}`,
     };
 
     dispatch({

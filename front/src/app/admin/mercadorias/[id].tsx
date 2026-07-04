@@ -32,6 +32,15 @@ const CATEGORIAS = [
   'GRAOS',
 ]
 
+// Pontos de maturação que um produto pode oferecer (ex.: frutas). Deve espelhar
+// o enum PontoMaturacao do backend. Vazio por padrão: só aparece pro cliente
+// quando o feirante seleciona ao menos um.
+const PONTOS_MATURACAO: { valor: string; label: string; emoji: string }[] = [
+  { valor: 'VERDE', label: 'Verde', emoji: '🟢' },
+  { valor: 'AO_PONTO', label: 'Ao Ponto', emoji: '🟡' },
+  { valor: 'MADURO', label: 'Maduro', emoji: '🔴' },
+]
+
 // Unidades discretas válidas para produtos controlados por UNIDADE.
 const UNIDADES_DISCRETAS = ['UN', 'CX']
 const UNIDADE_DISCRETA_LABEL: Record<string, string> = {
@@ -178,6 +187,10 @@ export default function MercadoriaDetalhe() {
   const [estoqueMinimo, setEstoqueMinimo] = useState('5')
   const [estoqueMaximo, setEstoqueMaximo] = useState('100')
   const [categoria, setCategoria] = useState('FRUTAS')
+  // Ponto de maturação: desligado por padrão. Quando ligado, o feirante escolhe
+  // um ou mais pontos; a lista vai pro cliente. Vazio = não oferece.
+  const [ofereceMaturacao, setOfereceMaturacao] = useState(false)
+  const [pontosMaturacao, setPontosMaturacao] = useState<string[]>([])
   const [destaque, setDestaque] = useState(false)
   const [foto, setFoto] = useState('')
   const [feiranteId, setFeiranteId] = useState<number | null>(null)
@@ -262,6 +275,9 @@ export default function MercadoriaDetalhe() {
       setEstoqueMinimo(String(data.estoque_minimo ?? 5))
       setEstoqueMaximo(String(data.estoque_maximo ?? 100))
       setCategoria(data.categoria ?? 'FRUTAS')
+      const pontos = Array.isArray(data.pontos_maturacao) ? data.pontos_maturacao : []
+      setPontosMaturacao(pontos)
+      setOfereceMaturacao(pontos.length > 0)
       setDestaque(!!data.destaque)
       setFoto(data.foto ?? '')
       setFeiranteId(data.feirante_id ?? null)
@@ -333,6 +349,12 @@ export default function MercadoriaDetalhe() {
       promoNum = n
     }
 
+    // Se o feirante ligou "ponto de maturação", precisa escolher ao menos um.
+    if (ofereceMaturacao && pontosMaturacao.length === 0) {
+      alert('Selecione ao menos um ponto de maturação ou desative a opção')
+      return
+    }
+
     setSaving(true)
     const payload = {
       nome,
@@ -351,6 +373,8 @@ export default function MercadoriaDetalhe() {
       estoque_minimo: min,
       estoque_maximo: max,
       categoria,
+      // Vazio quando a opção está desligada → produto não oferece maturação.
+      pontos_maturacao: ofereceMaturacao ? pontosMaturacao : [],
       destaque,
       foto,
       feirante_id: Number(feiranteId),
@@ -752,6 +776,62 @@ export default function MercadoriaDetalhe() {
                 )
               })()}
             </>
+          )}
+
+          {/* ── Ponto de maturação ── */}
+          <Text style={styles.secao}>
+            <Ionicons name="leaf-outline" size={15} color="#255336" /> Ponto de maturação
+          </Text>
+          <View style={styles.destaqueRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Oferecer ponto de maturação?</Text>
+              <Text style={styles.destaqueHint}>
+                Deixe o cliente escolher o ponto na compra (ex.: frutas). Desligado,
+                o produto não mostra essa opção.
+              </Text>
+            </View>
+            <Switch
+              value={ofereceMaturacao}
+              onValueChange={(v) => {
+                setOfereceMaturacao(v)
+                if (!v) setPontosMaturacao([])
+              }}
+              trackColor={{ false: '#DDD', true: '#255336' }}
+              thumbColor="#FFF"
+            />
+          </View>
+
+          {ofereceMaturacao && (
+            <View style={styles.configCard}>
+              <Text style={styles.label}>Pontos disponíveis para o cliente</Text>
+              <View style={styles.tabRow}>
+                {PONTOS_MATURACAO.map((p) => {
+                  const ativo = pontosMaturacao.includes(p.valor)
+                  return (
+                    <TouchableOpacity
+                      key={p.valor}
+                      style={[styles.tab, ativo && styles.tabAtivo]}
+                      onPress={() =>
+                        setPontosMaturacao((atual) =>
+                          atual.includes(p.valor)
+                            ? atual.filter((v) => v !== p.valor)
+                            : [...atual, p.valor],
+                        )
+                      }
+                    >
+                      <Text style={[styles.tabText, ativo && styles.tabTextoAtivo]}>
+                        {p.emoji} {p.label}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
+              {pontosMaturacao.length === 0 && (
+                <Text style={styles.promoHintNeutro}>
+                  Selecione ao menos um ponto para o cliente poder escolher.
+                </Text>
+              )}
+            </View>
           )}
 
           {/* ── Estoque ── */}

@@ -164,7 +164,16 @@ export interface Mercadoria {
   preco_kg?: Decimalish | null;
   /** Preço por unidade (derivado proporcional ao KG quando ausente em PESO). */
   preco_unidade?: Decimalish | null;
+  /**
+   * Pontos de maturação oferecidos (ex.: frutas). Vazio/ausente = o produto
+   * não oferece escolha de maturação. Quando há ao menos um, o cliente escolhe
+   * na compra e a seleção é gravada em PedidoItem.ponto_maturacao.
+   */
+  pontos_maturacao?: PontoMaturacao[];
 }
+
+/** Ponto de maturação de um produto. Espelha o enum PontoMaturacao do backend. */
+export type PontoMaturacao = "VERDE" | "AO_PONTO" | "MADURO";
 
 export interface Cesta {
   id: number;

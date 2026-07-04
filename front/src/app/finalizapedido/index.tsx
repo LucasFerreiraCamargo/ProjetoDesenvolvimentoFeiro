@@ -247,7 +247,12 @@ const FinalizaPedido = () => {
    * com alguma mercadoria), perdendo todos os outros itens da cesta.
    */
   type ItemApi =
-    | { mercadoria_id: number; quantidade: number; unidade?: string }
+    | {
+        mercadoria_id: number;
+        quantidade: number;
+        unidade?: string;
+        ponto_maturacao?: string;
+      }
     | { cesta_id: number; quantidade: number };
 
   function montarItemsParaApi(): ItemApi[] {
@@ -278,6 +283,10 @@ const FinalizaPedido = () => {
           mercadoria_id: idNumerico,
           quantidade: quantidadeApi,
           unidade: unidadeApi,
+          // Ponto de maturação escolhido (enum). Omite quando não há.
+          ...(item.pontoMaturacao
+            ? { ponto_maturacao: item.pontoMaturacao }
+            : {}),
         };
       })
       .filter((it): it is ItemApi => it !== null);
