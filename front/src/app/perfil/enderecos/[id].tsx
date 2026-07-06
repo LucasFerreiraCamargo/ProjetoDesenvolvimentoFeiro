@@ -62,6 +62,7 @@ const FormularioEndereco: React.FC = () => {
   const [carregando, setCarregando] = React.useState(!ehNovo);
   const [buscandoCep, setBuscandoCep] = React.useState(false);
   const [salvando, setSalvando] = React.useState(false);
+  const [localizando, setLocalizando] = React.useState(false);
 
   // Carrega endereço existente (modo edição) — usa lista do contexto.
   React.useEffect(() => {
@@ -143,6 +144,38 @@ const FormularioEndereco: React.FC = () => {
     return null;
   }
 
+  /**
+   * O backend salva o endereço na hora com latitude/longitude nulos e
+   * geocodifica em SEGUNDO PLANO (pra não estourar o timeout serverless).
+   * Fazemos um polling curto até as coordenadas aparecerem, para que a home
+   * já mostre o endereço localizado sem precisar salvar duas vezes.
+   * Se não resolver a tempo, volta assim mesmo (o fundo termina e o próximo
+   * foreground sincroniza).
+   */
+  async function aguardarCoordenadas(
+    token: string,
+    usuarioId: string | number,
+    enderecoId: number,
+  ) {
+    const TENTATIVAS = 6;
+    const INTERVALO = 1200; // ms → até ~7s de espera máxima
+    setLocalizando(true);
+    try {
+      for (let i = 0; i < TENTATIVAS; i++) {
+        try {
+          const lista = await enderecosService.listar(token, usuarioId);
+          const alvo = lista.find((e) => e.id === enderecoId);
+          if (alvo && alvo.latitude != null && alvo.longitude != null) return;
+        } catch {
+          // Falha de rede pontual: tenta de novo até o limite.
+        }
+        await new Promise((r) => setTimeout(r, INTERVALO));
+      }
+    } finally {
+      setLocalizando(false);
+    }
+  }
+
   async function salvar() {
     const erro = validar();
     if (erro) {
@@ -176,6 +209,8 @@ const FormularioEndereco: React.FC = () => {
         if (criado.principal) {
           setEnderecoSelecionado(criado.id);
         }
+        // Espera a geocodificação de fundo antes de voltar.
+        await aguardarCoordenadas(user.token, user.id, criado.id);
         Alert.alert("Pronto!", "Endereço adicionado.");
       } else if (id) {
         await enderecosService.atualizar(user.token, id, payload);
@@ -183,6 +218,8 @@ const FormularioEndereco: React.FC = () => {
           await enderecosService.marcarComoPrincipal(user.token, id);
           setEnderecoSelecionado(id);
         }
+        // Só reprocessa coords se o back pode ter zerado (mudou o endereço).
+        await aguardarCoordenadas(user.token, user.id, id);
         Alert.alert("Pronto!", "Endereço atualizado.");
       }
       // Atualiza o contexto antes de voltar — a lista já refletirá a mudança
@@ -360,7 +397,14 @@ const FormularioEndereco: React.FC = () => {
           disabled={salvando}
         >
           {salvando ? (
-            <ActivityIndicator color="#FFF" />
+            <View style={styles.botaoSalvandoConteudo}>
+              <ActivityIndicator color="#FFF" />
+              {localizando && (
+                <Text style={styles.botaoSalvarTexto}>
+                  Localizando endereço...
+                </Text>
+              )}
+            </View>
           ) : (
             <Text style={styles.botaoSalvarTexto}>
               {ehNovo ? "Adicionar endereço" : "Salvar alterações"}
@@ -462,6 +506,11 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontSize: 15,
     fontFamily: "Poppins-SemiBold",
+  },
+  botaoSalvandoConteudo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
 });
 

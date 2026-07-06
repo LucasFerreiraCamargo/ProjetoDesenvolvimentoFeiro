@@ -157,6 +157,19 @@ function precoDaForma(produto: any, forma: "peso" | "unidade"): number {
   return u ? u.preco : produto.preco;
 }
 
+// Rótulo curto exibido ao lado do preço, a partir do código REAL cadastrado
+// na mercadoria (enum Unidade: KG/UN/CX). Sem isto o front mostrava "unid"
+// genérico e produtos por caixa (CX) apareciam como "unid".
+const ROTULO_UNIDADE: Record<string, string> = {
+  KG: "kg",
+  UN: "unid",
+  CX: "cx",
+};
+function rotuloUnidade(tipo: string | undefined | null): string {
+  if (!tipo) return "unid";
+  return ROTULO_UNIDADE[tipo.toUpperCase()] ?? tipo.toLowerCase();
+}
+
 // Fotos do Unsplash para produtos
 const produtoImages: { [key: string]: string } = {
   "tomate-italiano":
@@ -805,7 +818,11 @@ export default function ProdutosFeiranteScreen() {
                           R$ {item.preco.toFixed(2)}
                         </Text>
                         <Text style={styles.carrinhoUnidade}>
-                          /{item.unidade === "g" ? "kg" : "unid"}
+                          /
+                          {rotuloUnidade(
+                            item.unidadeApi ??
+                              (item.unidade === "g" ? "KG" : "UN")
+                          )}
                         </Text>
                       </View>
                       <View style={styles.carrinhoQuantidadeInfo}>
@@ -874,8 +891,14 @@ export default function ProdutosFeiranteScreen() {
             const temPeso = temVendaPorPeso(produto); // tem KG
             const temUnidade = temVendaPorUnidade(produto); // tem UN/CX
             const ambasFormas = temPeso && temUnidade;
-            // Default inteligente: se só tem peso → "peso"; senão → "unidade".
-            const defaultQuantityType = temPeso && !temUnidade ? "peso" : "unidade";
+            // Default = unidade-base do cadastro. Todo produto controlado por
+            // PESO tem KG como unidade-base (preco_kg é a fonte da verdade),
+            // então ele deve ABRIR mostrando "/kg" — a mesma unidade que o
+            // feirante cadastrou — mesmo quando também permite venda por
+            // unidade. O toggle "Forma de venda" (ambasFormas) ainda deixa o
+            // cliente trocar para unidade. Só cai em "unidade" quando o produto
+            // não tem peso (tipo_controle = UNIDADE).
+            const defaultQuantityType = temPeso ? "peso" : "unidade";
             const quantityType =
               selectedQuantityType[produto.id] || defaultQuantityType;
             // Produto vindo da busca: marca com borda verde + faixa no topo.
@@ -932,7 +955,12 @@ export default function ProdutosFeiranteScreen() {
                         R$ {getCurrentPrice(produto, quantityType).toFixed(2)}
                       </Text>
                       <Text style={styles.unidadeText}>
-                        /{quantityType === "peso" ? "kg" : "unid"}
+                        /
+                        {rotuloUnidade(
+                          quantityType === "peso"
+                            ? "KG"
+                            : codigoUnidadeVenda(produto)
+                        )}
                       </Text>
                     </View>
                     <Text style={styles.estoqueInfo}>

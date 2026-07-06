@@ -1,4 +1,5 @@
 import React, { createContext, ReactNode, useContext, useReducer } from "react";
+import { useUser } from "./UserContext";
 
 // Tipos para o contexto da cesta
 export interface ItemCesta {
@@ -198,6 +199,26 @@ export const CestaProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
   const [state, dispatch] = useReducer(cestaReducer, initialState);
+
+  // A cesta é um estado em memória, global no app. Sem isto, ao deslogar de um
+  // usuário e logar em outro no MESMO aparelho, o carrinho do usuário anterior
+  // "vaza" para o novo. Aqui amarramos a cesta à identidade logada: sempre que
+  // o usuário muda (logout → null, ou troca de conta), zeramos o carrinho.
+  const { user } = useUser();
+  const donoIdRef = React.useRef<string | number | null | undefined>(undefined);
+
+  React.useEffect(() => {
+    const atual = user?.id ?? null;
+    // Primeira execução: só registra o dono atual, sem limpar.
+    if (donoIdRef.current === undefined) {
+      donoIdRef.current = atual;
+      return;
+    }
+    if (donoIdRef.current !== atual) {
+      donoIdRef.current = atual;
+      dispatch({ type: "CLEAR_CESTA" });
+    }
+  }, [user?.id]);
 
   // Funções helper
   const adicionarItem = (itemData: Omit<ItemCesta, "id">) => {

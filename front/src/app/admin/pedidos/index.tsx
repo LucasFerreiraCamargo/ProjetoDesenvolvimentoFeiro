@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect, useRouter } from 'expo-router'
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import {
   ActivityIndicator,
   FlatList,
@@ -64,23 +64,10 @@ export default function Pedidos() {
     }, [fetchPedidos]),
   )
 
-  // Feirante (nível 2) só vê pedidos que incluem alguma mercadoria da banca dele.
-  // Superadmin (nível 3) vê todos.
-  const visiveis = useMemo(() => {
-    if (!admin) return []
-    if (admin.nivel >= 3) return pedidos
-    if (admin.nivel === 2 && admin.feiranteId != null) {
-      return pedidos.filter((p: any) => {
-        const items = Array.isArray(p.items) ? p.items : []
-        return items.some(
-          (it: any) => Number(it?.mercadoria?.feirante_id) === Number(admin.feiranteId),
-        )
-      })
-    }
-    return []
-  }, [admin, pedidos])
-
-  const filtrados = visiveis.filter((p) => filtro === 'Todos' || p.status === filtro)
+  // O backend já escopa os pedidos pelo token: superadmin recebe todos;
+  // feirante recebe apenas os da própria banca (com itens já filtrados).
+  // Aqui só aplicamos o filtro de status escolhido na UI.
+  const filtrados = pedidos.filter((p) => filtro === 'Todos' || p.status === filtro)
 
   const corBorda = (status: string) => STATUS_MAP[status]?.text ?? '#E0E0E0'
 

@@ -39,13 +39,26 @@ function novaMensagem(autor: MensagemIa['autor'], texto: string): MensagemIa {
   }
 }
 
-/** Converte o asset do ImagePicker em data URI base64 (aceito pelo webhook). */
-function resultadoParaDataUri(asset: ImagePicker.ImagePickerAsset): string | null {
-  if (!asset?.base64) return null
-  const mime =
-    asset.mimeType ||
-    (asset.fileName?.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg')
-  return `data:${mime};base64,${asset.base64}`
+/**
+ * Converte um arquivo local (file:// do ImagePicker) em data URI base64,
+ * aceito pelo webhook. Feito SÓ na hora do envio — nunca durante a captura —
+ * pra não segurar a imagem inteira na memória enquanto a câmera está aberta
+ * (era o que fazia o Android matar o processo e o Expo "recarregar").
+ */
+async function uriParaBase64(uri: string): Promise<string | null> {
+  try {
+    const resp = await fetch(uri)
+    const blob = await resp.blob()
+    return await new Promise<string | null>((resolve) => {
+      const reader = new FileReader()
+      reader.onerror = () => resolve(null)
+      reader.onloadend = () =>
+        resolve(typeof reader.result === 'string' ? reader.result : null)
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return null
+  }
 }
 
 // Detecta URLs (http/https) dentro do texto. Usado pra transformar links —
@@ -159,14 +172,16 @@ export default function ChatIaScreen() {
       ])
       return
     }
-    // quality baixo + crop quadrado reduzem MUITO o base64 enviado ao Gemini
-    // (o reconhecimento não precisa de alta resolução).
+    // IMPORTANTE p/ Android: NÃO pedir base64 nem allowsEditing aqui.
+    //  - base64:true força a imagem inteira (resolução de câmera) pra memória
+    //    JS na hora da captura; junto com a câmera em foco, o SO estoura RAM,
+    //    mata o processo e o Expo remonta tudo (o "recarregando").
+    //  - allowsEditing abre uma Activity de recorte, que também derruba a host.
+    // Aqui pegamos só a uri (leve). O base64 é gerado depois, no envio.
     const opcoes: ImagePicker.ImagePickerOptions = {
       mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
+      allowsEditing: false,
       quality: 0.35,
-      base64: true,
     }
     const abrir = async (fonte: 'camera' | 'galeria') => {
       if (pickerAberto.current || requisicaoEmCurso.current) return
@@ -188,7 +203,7 @@ export default function ChatIaScreen() {
             ? await ImagePicker.launchCameraAsync(opcoes)
             : await ImagePicker.launchImageLibraryAsync(opcoes)
         if (result.canceled) return
-        const uri = resultadoParaDataUri(result.assets[0])
+        const uri = result.assets[0]?.uri
         if (uri) processarFoto(uri)
       } catch {
         setMensagens((a) => [
@@ -220,9 +235,22 @@ export default function ChatIaScreen() {
         setTexto('')
         setEnviando(true)
         try {
+          // fotoPendente agora é uma uri local; convertemos pra base64 só aqui.
+          const imagemBase64 = await uriParaBase64(fotoPendente)
+          if (!imagemBase64) {
+            setFotoPendente(null)
+            setMensagens((a) => [
+              ...a,
+              novaMensagem(
+                'ia',
+                '⚠️ Não consegui ler a foto. Tire a foto de novo, por favor.',
+              ),
+            ])
+            return
+          }
           const r = await cadastroMultimodalService.cadastrar(
             admin?.feiranteId ?? 0,
-            fotoPendente,
+            imagemBase64,
             corpo,
           )
           // Resposta vazia/sem `status` = webhook não devolveu nada

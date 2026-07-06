@@ -14,6 +14,24 @@ import ConfirmModal from '../../../components/admin/ConfirmModal'
 import { useAdmin, useAdminGuard, useAdminTitulo } from '../../../contexts/AdminContext'
 import { adminFetch } from '../../../utils/adminApi'
 
+// Convenção do projeto: 1 = Cliente, 2 = Feirante, 3 = Superadmin.
+const NIVEIS = [
+  { valor: 1, label: 'Cliente', cor: '#6B7280', bg: '#F3F4F6' },
+  { valor: 2, label: 'Feirante', cor: '#255336', bg: '#E8F5E8' },
+  { valor: 3, label: 'Superadmin', cor: '#92400E', bg: '#FEF3C7' },
+] as const
+
+type Usuario = {
+  id: string
+  nome: string
+  email: string
+  telefone?: string
+  nivel: number
+  feirantes?: { id: number }[]
+}
+
+type Pendente = { usuario: Usuario; nivelNovo: number } | null
+
 export default function Usuarios() {
   // Só Superadmin (nivel 3) gerencia usuários
   useAdminGuard(3)
@@ -21,11 +39,14 @@ export default function Usuarios() {
   const { admin } = useAdmin()
   const router = useRouter()
 
-  const [usuarios, setUsuarios] = useState<any[]>([])
+  const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [busca, setBusca] = useState('')
   const [loading, setLoading] = useState(true)
-  const [deleteId, setDeleteId] = useState<number | null>(null)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  // Alteração de nível (fluxo separado do de exclusão).
+  const [pendente, setPendente] = useState<Pendente>(null)
+  const [salvando, setSalvando] = useState(false)
   const buscaTimeout = useRef<any>(null)
 
   useEffect(() => { fetchUsuarios() }, [])
@@ -60,9 +81,52 @@ export default function Usuarios() {
     setDeleteId(null)
   }
 
-  const formatarData = (d: string) => {
-    if (!d) return ''
-    try { return new Date(d).toLocaleDateString('pt-BR') } catch { return d }
+  async function confirmarNivel() {
+    if (!pendente) return
+    const { usuario, nivelNovo } = pendente
+    setSalvando(true)
+    try {
+      const res = await adminFetch(
+        `/usuarios/${usuario.id}/nivel`,
+        { method: 'PATCH', body: JSON.stringify({ nivel: nivelNovo }) },
+        admin!.token,
+      )
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        alert(data?.erro || 'Não foi possível alterar o nível.')
+      } else {
+        // Atualiza localmente: novo nível e, se veio, a banca recém-vinculada.
+        setUsuarios((prev) =>
+          prev.map((u) =>
+            u.id === usuario.id
+              ? {
+                  ...u,
+                  nivel: nivelNovo,
+                  feirantes:
+                    data?.feiranteId != null
+                      ? [{ id: Number(data.feiranteId) }]
+                      : u.feirantes,
+                }
+              : u,
+          ),
+        )
+      }
+    } catch { alert('Erro de conexão ao alterar o nível.') }
+    setSalvando(false)
+    setPendente(null)
+  }
+
+  function mensagemNivel(p: Pendente): string {
+    if (!p) return ''
+    const labelNovo = NIVEIS.find((n) => n.valor === p.nivelNovo)?.label ?? ''
+    const jaTemBanca = (p.usuario.feirantes?.length ?? 0) > 0
+    let msg = `Alterar "${p.usuario.nome}" para ${labelNovo}?`
+    if (p.nivelNovo === 2 && !jaTemBanca) {
+      msg +=
+        '\n\nUma banca será criada e vinculada automaticamente a este usuário. ' +
+        'O feirante poderá ajustar os dados no próprio perfil.'
+    }
+    return msg
   }
 
   return (
@@ -76,6 +140,7 @@ export default function Usuarios() {
             placeholderTextColor="#999"
             value={busca}
             onChangeText={handleBusca}
+            autoCapitalize="none"
           />
         </View>
       </View>
@@ -87,43 +152,101 @@ export default function Usuarios() {
           data={usuarios}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.lista}
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <View style={styles.cardTopo}>
-                <View style={styles.avatar}>
-                  <Ionicons name="person" size={24} color="#255336" />
+          ListEmptyComponent={
+            <Text style={styles.vazio}>Nenhum usuário encontrado.</Text>
+          }
+          renderItem={({ item }) => {
+            const nivelInfo = NIVEIS.find((n) => n.valor === item.nivel) ?? NIVEIS[0]
+            const souEu = String(item.id) === String(admin?.id)
+            const temBanca = (item.feirantes?.length ?? 0) > 0
+            return (
+              <View style={styles.card}>
+                <View style={styles.cardTopo}>
+                  <View style={styles.avatar}>
+                    <Ionicons name="person" size={24} color="#255336" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.nome} numberOfLines={1}>{item.nome}</Text>
+                    <Text style={styles.email} numberOfLines={1}>{item.email}</Text>
+                    {item.telefone ? (
+                      <Text style={styles.sub}>{item.telefone}</Text>
+                    ) : null}
+                  </View>
+                  <View style={[styles.badge, { backgroundColor: nivelInfo.bg }]}>
+                    <Text style={[styles.badgeText, { color: nivelInfo.cor }]}>
+                      {nivelInfo.label}
+                    </Text>
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.nome}>{item.nome}</Text>
-                  <Text style={styles.email}>{item.email}</Text>
-                  <Text style={styles.sub}>
-                    {item.telefone ? item.telefone : ''}
-                  </Text>
-                  <Text style={styles.data}>
-                    Cadastrado: {formatarData(item.created_at ?? item.membro_desde)}
-                  </Text>
+
+                {item.nivel === 2 && temBanca ? (
+                  <View style={styles.vinculo}>
+                    <Ionicons name="storefront" size={13} color="#255336" />
+                    <Text style={styles.vinculoText}>Banca vinculada</Text>
+                  </View>
+                ) : null}
+
+                <Text style={styles.rotuloNivel}>Nível de acesso</Text>
+                <View style={styles.segment}>
+                  {NIVEIS.map((n) => {
+                    const ativo = item.nivel === n.valor
+                    return (
+                      <TouchableOpacity
+                        key={n.valor}
+                        disabled={ativo || souEu}
+                        style={[
+                          styles.segBtn,
+                          ativo && styles.segBtnAtivo,
+                          souEu && !ativo && styles.segBtnDisabled,
+                        ]}
+                        onPress={() => setPendente({ usuario: item, nivelNovo: n.valor })}
+                      >
+                        <Text style={[styles.segText, ativo && styles.segTextAtivo]}>
+                          {n.label}
+                        </Text>
+                      </TouchableOpacity>
+                    )
+                  })}
                 </View>
-              </View>
-              <View style={styles.cardAcoes}>
-                <TouchableOpacity
-                  style={styles.botaoVer}
-                  onPress={() => router.push(`/admin/usuarios/${item.id}` as any)}
-                >
-                  <Text style={styles.botaoVerText}>Ver Perfil</Text>
-                </TouchableOpacity>
-                {admin?.nivel === 3 && (
+
+                <View style={styles.cardAcoes}>
+                  {souEu ? (
+                    <Text style={styles.aviso}>
+                      Você não pode alterar o seu próprio nível.
+                    </Text>
+                  ) : (
+                    <View />
+                  )}
                   <TouchableOpacity
-                    style={styles.botaoExcluir}
-                    onPress={() => setDeleteId(item.id)}
+                    style={styles.botaoVer}
+                    onPress={() => router.push(`/admin/usuarios/${item.id}` as any)}
                   >
-                    <Ionicons name="trash" size={16} color="#DC2626" />
+                    <Text style={styles.botaoVerText}>Ver Perfil</Text>
                   </TouchableOpacity>
-                )}
+                  {!souEu && (
+                    <TouchableOpacity
+                      style={styles.botaoExcluir}
+                      onPress={() => setDeleteId(item.id)}
+                    >
+                      <Ionicons name="trash" size={16} color="#DC2626" />
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
-            </View>
-          )}
+            )
+          }}
         />
       )}
+
+      <ConfirmModal
+        visible={pendente !== null}
+        titulo="Alterar nível de acesso"
+        mensagem={mensagemNivel(pendente)}
+        confirmLabel="Confirmar"
+        loading={salvando}
+        onConfirm={confirmarNivel}
+        onCancel={() => setPendente(null)}
+      />
 
       <ConfirmModal
         visible={deleteId !== null}
@@ -158,6 +281,12 @@ const styles = StyleSheet.create({
   },
   buscaInput: { flex: 1, fontSize: 14, fontFamily: 'Poppins-Regular', color: '#333333' },
   lista: { paddingHorizontal: 16, paddingBottom: 32 },
+  vazio: {
+    textAlign: 'center',
+    marginTop: 40,
+    color: '#999',
+    fontFamily: 'Poppins-Regular',
+  },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -169,7 +298,7 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     shadowOpacity: 1,
   },
-  cardTopo: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  cardTopo: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   avatar: {
     width: 48,
     height: 48,
@@ -181,7 +310,35 @@ const styles = StyleSheet.create({
   nome: { fontSize: 16, fontFamily: 'Poppins-SemiBold', color: '#333333' },
   email: { fontSize: 14, fontFamily: 'Poppins-Regular', color: '#666666' },
   sub: { fontSize: 13, fontFamily: 'Poppins-Regular', color: '#666666' },
-  data: { fontSize: 12, fontFamily: 'Poppins-Regular', color: '#999999' },
+  badge: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
+  badgeText: { fontSize: 12, fontFamily: 'Poppins-SemiBold' },
+  vinculo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 10,
+  },
+  vinculoText: { fontSize: 12, fontFamily: 'Poppins-Regular', color: '#255336' },
+  rotuloNivel: {
+    fontSize: 12,
+    fontFamily: 'Poppins-SemiBold',
+    color: '#999999',
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  segment: { flexDirection: 'row', gap: 8 },
+  segBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#255336',
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  segBtnAtivo: { backgroundColor: '#255336' },
+  segBtnDisabled: { borderColor: '#CBD5CB', opacity: 0.5 },
+  segText: { fontSize: 12, fontFamily: 'Poppins-SemiBold', color: '#255336' },
+  segTextAtivo: { color: '#FFFFFF' },
   cardAcoes: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -189,6 +346,13 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#EEEEEE',
     paddingTop: 12,
+    marginTop: 14,
+  },
+  aviso: {
+    flex: 1,
+    fontSize: 11,
+    fontFamily: 'Poppins-Regular',
+    color: '#999999',
   },
   botaoVer: {
     borderWidth: 1,
@@ -196,6 +360,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 8,
+    marginLeft: 'auto',
   },
   botaoVerText: { fontSize: 13, fontFamily: 'Poppins-SemiBold', color: '#255336' },
   botaoExcluir: {
