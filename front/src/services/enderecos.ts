@@ -35,6 +35,36 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * fetch com timeout — impede que a UI fique presa em "carregando" caso a API
+ * demore demais (cold start do Neon + geocoding no POST/PUT podem somar vários
+ * segundos). Sem isto, o fetch cru espera indefinidamente.
+ *
+ * 20s cobre o pior caso legítimo (ViaCEP 5s + Nominatim 5s + wake do banco)
+ * sem deixar o usuário travado para sempre.
+ */
+async function fetchComTimeout(
+  url: string,
+  init: RequestInit = {},
+  timeoutMs = 20000,
+): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } catch (e: any) {
+    if (e?.name === "AbortError") {
+      throw new ApiError(
+        "O servidor demorou a responder. Verifique sua conexão e tente novamente.",
+        0,
+      );
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function lidaErro(res: Response, fallback: string): Promise<never> {
   let msg = fallback;
   try {
@@ -73,7 +103,7 @@ function base() {
 export const enderecosService = {
   /** Lista os endereços do usuário (principal sempre primeiro). */
   async listar(token: string, usuarioId: string): Promise<EnderecoUsuario[]> {
-    const res = await fetch(`${base()}/enderecos/usuario/${usuarioId}`, {
+    const res = await fetchComTimeout(`${base()}/enderecos/usuario/${usuarioId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) await lidaErro(res, "Erro ao listar endereços");
@@ -86,7 +116,7 @@ export const enderecosService = {
     usuarioId: string,
     payload: EnderecoPayload,
   ): Promise<EnderecoUsuario> {
-    const res = await fetch(`${base()}/enderecos`, {
+    const res = await fetchComTimeout(`${base()}/enderecos`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -104,7 +134,7 @@ export const enderecosService = {
     id: number,
     payload: Partial<EnderecoPayload>,
   ): Promise<EnderecoUsuario> {
-    const res = await fetch(`${base()}/enderecos/${id}`, {
+    const res = await fetchComTimeout(`${base()}/enderecos/${id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -118,7 +148,7 @@ export const enderecosService = {
 
   /** Remove um endereço. Se for o principal, promove o mais antigo restante. */
   async remover(token: string, id: number): Promise<void> {
-    const res = await fetch(`${base()}/enderecos/${id}`, {
+    const res = await fetchComTimeout(`${base()}/enderecos/${id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -130,7 +160,7 @@ export const enderecosService = {
     token: string,
     id: number,
   ): Promise<EnderecoUsuario> {
-    const res = await fetch(`${base()}/enderecos/${id}/principal`, {
+    const res = await fetchComTimeout(`${base()}/enderecos/${id}/principal`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}` },
     });

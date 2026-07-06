@@ -39,6 +39,12 @@ interface RequestOptions {
   headers?: Record<string, string>;
   /** Timeout em ms. Default 15000. */
   timeoutMs?: number;
+  /**
+   * Signal externo para cancelar a requisição (ex.: quando a tela é
+   * desmontada / o usuário faz logout). É combinado com o timeout interno:
+   * a request é abortada quando QUALQUER um dos dois disparar.
+   */
+  signal?: AbortSignal;
 }
 
 /**
@@ -51,10 +57,19 @@ async function request<T>(
   options: RequestOptions = {}
 ): Promise<T> {
   const url = `${apiBase}${path.startsWith("/") ? path : `/${path}`}`;
-  const { token, headers: extraHeaders, timeoutMs = 15000 } = options;
+  const { token, headers: extraHeaders, timeoutMs = 15000, signal: externalSignal } = options;
 
+  // Controller interno = timeout. Ele também é abortado caso o signal externo
+  // (desmontagem/logout) dispare, para cancelar a request na hora em vez de
+  // deixá-la pendurada até o timeout.
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  const onExternalAbort = () => controller.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort();
+    else externalSignal.addEventListener("abort", onExternalAbort);
+  }
 
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -83,6 +98,7 @@ async function request<T>(
     return JSON.parse(text) as T;
   } finally {
     clearTimeout(timer);
+    if (externalSignal) externalSignal.removeEventListener("abort", onExternalAbort);
   }
 }
 

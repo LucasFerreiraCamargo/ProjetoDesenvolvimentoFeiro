@@ -388,7 +388,7 @@ function mapCestaParaCard(c: any) {
 // --- Tela Principal ---
 export default function HomeScreen() {
   const { state, getAllProdutos } = useApp();
-  const { user, enderecoAtual } = useUser();
+  const { user, enderecoAtual, enderecos } = useUser();
 
   // Produtos reais da API (substitui o mock para "Promoções do Dia")
   const [produtosApi, setProdutosApi] = useState<any[]>([]);
@@ -405,10 +405,14 @@ export default function HomeScreen() {
     enderecoAtual?.latitude != null && enderecoAtual?.longitude != null;
 
   useEffect(() => {
+    // Um único controller cancela as duas cargas quando a tela é desmontada
+    // (ex.: logout). `signal.aborted` distingue cancelamento (esperado) de
+    // falha real da rede/servidor.
+    const controller = new AbortController();
     let cancelado = false;
     async function carregarMercadorias() {
       try {
-        const lista = await mercadoriasService.listar();
+        const lista = await mercadoriasService.listar({ signal: controller.signal });
 
         const disponiveis = lista
           .filter(estaDisponivelParaVenda)
@@ -424,6 +428,8 @@ export default function HomeScreen() {
           setFiltradoPorRaio(clienteTemCoordenadas);
         }
       } catch (e) {
+        // Cancelamento por saída de tela/logout não é erro — ignora em silêncio.
+        if (controller.signal.aborted) return;
         console.error("[Home] Falha ao buscar mercadorias:", e);
         if (!cancelado) setProdutosApi([]);
       } finally {
@@ -433,7 +439,7 @@ export default function HomeScreen() {
 
     async function carregarCestas() {
       try {
-        const lista = await cestasService.listar();
+        const lista = await cestasService.listar({ signal: controller.signal });
         if (!cancelado) {
           const mapeadas = lista
             .filter((c: Cesta) =>
@@ -447,6 +453,8 @@ export default function HomeScreen() {
           setCestasApi(mapeadas);
         }
       } catch (e) {
+        // Cancelamento por saída de tela/logout não é erro — ignora em silêncio.
+        if (controller.signal.aborted) return;
         console.error("[Home] Falha ao buscar cestas:", e);
         if (!cancelado) setCestasApi([]);
       } finally {
@@ -458,6 +466,7 @@ export default function HomeScreen() {
     carregarCestas();
     return () => {
       cancelado = true;
+      controller.abort(); // cancela requests em voo ao sair/deslogar
     };
     // Re-roda quando o endereço selecionado muda (ex.: trocou no dropdown)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -504,8 +513,12 @@ export default function HomeScreen() {
           <Ionicons name="mic-outline" size={20} color="#999" />
         </TouchableOpacity>
 
-        {/* Aviso: cliente sem endereço cadastrado */}
-        {user && !clienteTemCoordenadas ? (
+        {/* Aviso de endereço. Dois casos distintos:
+            1. Sem NENHUM endereço → pede para cadastrar.
+            2. Tem endereço, mas sem coordenadas (geocoding não resolveu) →
+               não pede para "cadastrar" (isso confunde: o endereço existe),
+               só avisa que o filtro por região está indisponível. */}
+        {user && enderecos.length === 0 ? (
           <TouchableOpacity
             style={styles.avisoEndereco}
             onPress={() => router.push("/perfil")}
@@ -517,8 +530,31 @@ export default function HomeScreen() {
                 Cadastre seu endereço
               </Text>
               <Text style={styles.avisoEnderecoTexto}>
-                Para ver só os produtos que entregam na sua região, atualize seu
+                Para ver só os produtos que entregam na sua região, cadastre seu
                 endereço no perfil.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#92400E" />
+          </TouchableOpacity>
+        ) : user && !clienteTemCoordenadas ? (
+          <TouchableOpacity
+            style={styles.avisoEndereco}
+            onPress={() =>
+              router.push({
+                pathname: "/perfil/enderecos/[id]",
+                params: { id: String(enderecoAtual?.id ?? "novo") },
+              })
+            }
+            activeOpacity={0.85}
+          >
+            <Ionicons name="navigate-outline" size={20} color="#92400E" />
+            <View style={{ flex: 1, marginLeft: 8 }}>
+              <Text style={styles.avisoEnderecoTitulo}>
+                Endereço sem localização no mapa
+              </Text>
+              <Text style={styles.avisoEnderecoTexto}>
+                Não conseguimos localizar seu endereço. Mostrando todos os
+                produtos — toque para revisar e reprocessar.
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#92400E" />

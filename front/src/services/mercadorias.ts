@@ -8,13 +8,19 @@
 import { apiGet } from "./api";
 import type { Mercadoria } from "../types/api";
 
+/** Opções aceitas pelas chamadas de leitura (ex.: signal p/ cancelamento). */
+interface ListarOptions {
+  signal?: AbortSignal;
+}
+
 export const mercadoriasService = {
   /**
    * Lista todas as mercadorias.
    * A rota inclui `feirante` para que o cliente possa aplicar filtros
    * de proximidade geográfica sem novas requisições.
    */
-  listar: () => apiGet<Mercadoria[]>("/mercadorias"),
+  listar: (options?: ListarOptions) =>
+    apiGet<Mercadoria[]>("/mercadorias", { signal: options?.signal }),
 
   /**
    * Busca uma mercadoria por id (com feirante incluído).

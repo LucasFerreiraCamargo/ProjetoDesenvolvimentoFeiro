@@ -41,6 +41,9 @@ export default function RegisterScreen() {
   const [telefone, setTelefone] = useState("");
   const [endereco, setEndereco] = useState("");
   const [bairro, setBairro] = useState("");
+  // Art. 7°, I / Art. 8° LGPD — consentimento livre, informado e inequívoco.
+  // O cadastro só é enviado com este flag em true.
+  const [aceitouLgpd, setAceitouLgpd] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   // Validação client-side espelhando as regras do backend, pra dar
@@ -58,6 +61,8 @@ export default function RegisterScreen() {
     const tel = soDigitos(telefone);
     if (tel.length < 10 || tel.length > 11)
       return "Telefone deve ter 10 ou 11 dígitos (DDD + número).";
+    if (!aceitouLgpd)
+      return "É necessário aceitar a Política de Privacidade (LGPD) para se cadastrar.";
     return null;
   };
 
@@ -81,6 +86,8 @@ export default function RegisterScreen() {
         email: email.trim().toLowerCase(),
         senha,
         telefone: soDigitos(telefone),
+        // Backend exige z.literal(true) — registra consentimento (Art. 7°, I).
+        consentimento_lgpd: aceitouLgpd,
       };
       if (endereco.trim() && bairro.trim()) {
         payload.endereco_inicial = {
@@ -172,10 +179,30 @@ export default function RegisterScreen() {
             onChangeText={setBairro}
           />
 
+          {/* Consentimento LGPD — obrigatório para habilitar o cadastro. */}
           <Pressable
-            style={[styles.entrarButton, isLoading && styles.entrarButtonDisabled]}
+            style={styles.consentRow}
+            onPress={() => setAceitouLgpd((v) => !v)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: aceitouLgpd }}
+          >
+            <View style={[styles.checkbox, aceitouLgpd && styles.checkboxChecked]}>
+              {aceitouLgpd && <Text style={styles.checkboxMark}>✓</Text>}
+            </View>
+            <Text style={styles.consentText}>
+              Li e aceito a{" "}
+              <Text style={styles.consentLink}>Política de Privacidade</Text> e o
+              tratamento dos meus dados pessoais conforme a LGPD.
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.entrarButton,
+              (isLoading || !aceitouLgpd) && styles.entrarButtonDisabled,
+            ]}
             onPress={handleRegister}
-            disabled={isLoading}
+            disabled={isLoading || !aceitouLgpd}
           >
             {isLoading ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
@@ -253,6 +280,41 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: 16,
     backgroundColor: "#FAFAFA",
+  },
+  consentRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#255336",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
+  },
+  checkboxChecked: {
+    backgroundColor: "#255336",
+  },
+  checkboxMark: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 16,
+  },
+  consentText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#4A4A4A",
+    lineHeight: 18,
+  },
+  consentLink: {
+    color: "#255336",
+    fontWeight: "600",
+    textDecorationLine: "underline",
   },
   forgotPassword: {
     alignSelf: "flex-end",
